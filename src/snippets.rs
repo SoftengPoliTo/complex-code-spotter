@@ -120,7 +120,7 @@ fn save_snippets(
     // Save snippet data.
     snippets
         .entry(complexity_type)
-        .or_insert_with(Vec::new)
+        .or_default()
         .push(snippet_data);
 }
 

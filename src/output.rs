@@ -220,7 +220,7 @@ impl WriteFormat for Html {
             )?;
         }
 
-        let mut index_file = File::create(&dir.join("index.html"))?;
+        let mut index_file = File::create(dir.join("index.html"))?;
         writeln!(
             index_file,
             r#"<!DOCTYPE html>
