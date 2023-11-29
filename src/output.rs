@@ -2,26 +2,21 @@ use std::fs::{create_dir_all, File};
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 
-use arg_enum_proc_macro::ArgEnum;
 use tracing::debug;
 
 use crate::Snippets;
 use crate::{Error, Result};
 
 /// Supported output formats.
-#[derive(ArgEnum, Debug, PartialEq, Eq)]
+#[derive(clap::ValueEnum, Clone, Debug, PartialEq, Eq)]
 pub enum OutputFormat {
     /// Markdown format.
-    #[arg_enum(name = "markdown")]
     Markdown,
     /// Html format.
-    #[arg_enum(name = "html")]
     Html,
     /// Json format.
-    #[arg_enum(name = "json")]
     Json,
     /// Enables all supported output formats.
-    #[arg_enum(name = "all")]
     All,
 }
 

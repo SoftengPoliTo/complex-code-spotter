@@ -1,4 +1,5 @@
-use arg_enum_proc_macro::ArgEnum;
+use std::fmt;
+
 use rust_code_analysis::FuncSpace;
 use serde::Serialize;
 
@@ -27,14 +28,22 @@ impl ComplexityChecker for Cognitive {
 }
 
 /// Supported complexities metrics.
-#[derive(ArgEnum, Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(clap::ValueEnum, Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 pub enum Complexity {
     /// Cyclomatic metric.
-    #[arg_enum(name = "cyclomatic")]
+    #[default]
     Cyclomatic,
     /// Cognitive metric.
-    #[arg_enum(name = "cognitive")]
     Cognitive,
+}
+
+impl fmt::Display for Complexity {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Cyclomatic => write!(f, "cyclomatic"),
+            Self::Cognitive => write!(f, "cognitive"),
+        }
+    }
 }
 
 impl Complexity {

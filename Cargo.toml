@@ -14,8 +14,7 @@ edition = "2021"
 name = "complex-code-spotter"
 
 [dependencies]
-arg_enum_proc_macro = "^0.3"
-clap = { version = "^3.2", features = ["derive"] }
+clap = { version = "^4.4", features = ["derive"] }
 rust-code-analysis = "^0.0.24"
 globset = "^0.4"
 html-escape = "^0.2"

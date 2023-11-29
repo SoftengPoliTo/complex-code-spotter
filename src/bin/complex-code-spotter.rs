@@ -1,6 +1,8 @@
+use std::error::Error;
 use std::path::PathBuf;
 
 use clap::Parser;
+
 use tracing_subscriber::EnvFilter;
 
 use complex_code_spotter::{Complexity, OutputFormat, SnippetsProducer};
@@ -11,80 +13,54 @@ const fn thresholds_long_help() -> &'static str {
    Thresholds 0 and 100 are extremes and are generally not recommended"
 }
 
-fn possible_values() -> String {
-    format!(
-        "\n       [possible values: {}, {}]",
-        Complexity::all()
-            .iter()
-            .map(|c| c.to_string().to_lowercase())
-            .collect::<Vec<String>>()
-            .join(", "),
-        Complexity::all()
-            .iter()
-            .map(|c| format!("{}:threshold", c.to_string().to_lowercase()))
-            .collect::<Vec<String>>()
-            .join(", ")
-    )
-}
-
-#[derive(Debug, PartialEq)]
-struct CliComplexity(Complexity, usize);
-
-impl std::str::FromStr for CliComplexity {
-    type Err = Box<dyn std::error::Error + Send + Sync + 'static>;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let (complexity, value) = if let Some((complexity, value)) = s.split_once(':') {
-            (
-                Complexity::from_str(complexity.trim()).map_err(|_| possible_values())?,
-                value
-                    .trim()
-                    .parse::<usize>()
-                    .map_err(|_| possible_values())?,
-            )
-        } else {
-            let complexity = Complexity::from_str(s.trim()).map_err(|_| possible_values())?;
-            (complexity, complexity.default_threshold())
-        };
-        Ok(Self(complexity, value))
-    }
+/// Parse a single key-value pair
+fn parse_key_val<T, U>(s: &str) -> Result<(T, U), Box<dyn Error + Send + Sync + 'static>>
+where
+    T: std::str::FromStr,
+    T::Err: Error + Send + Sync + 'static,
+    U: std::str::FromStr,
+    U::Err: Error + Send + Sync + 'static,
+{
+    let pos = s
+        .find('=')
+        .ok_or_else(|| format!("invalid KEY=value: no `=` found in `{s}`"))?;
+    Ok((s[..pos].parse()?, s[pos + 1..].parse()?))
 }
 
 #[derive(Parser, Debug)]
-struct Opts {
+#[command(author, version, about, long_about = None)]
+struct Args {
     /// Path to the source files to be analyzed
-    #[clap(value_parser)]
     source_path: PathBuf,
     /// Output path containing the snippets of complex code for each file
-    #[clap(value_parser)]
     output_path: PathBuf,
     /// Output the generated paths as they are produced
-    #[clap(short, long)]
+    #[arg(short, long)]
     verbose: bool,
     /// Glob to include files
-    #[clap(long, short = 'I')]
+    #[arg(long, short = 'I')]
     include: Vec<String>,
     /// Glob to exclude files
-    #[clap(long, short = 'X')]
+    #[arg(long, short = 'X')]
     exclude: Vec<String>,
     /// Output format
-    #[clap(long, short = 'O', default_value = OutputFormat::default(), possible_values = OutputFormat::variants())]
+    #[arg(long, short = 'O')]
     output_format: OutputFormat,
     /// List of complexities metrics and thresholds considered for snippets
-    #[clap(long, short, default_values = &["cyclomatic:15","cognitive:15"], long_help = thresholds_long_help())]
-    complexities: Vec<CliComplexity>,
+    #[arg(short, value_parser = parse_key_val::<Complexity, usize>, long_help = thresholds_long_help())]
+    complexities: Vec<(Complexity, usize)>,
 }
 
 fn main() {
-    let opts = Opts::parse();
+    let args = Args::parse();
 
-    let complexity = opts.complexities.iter().map(|v| v.0).collect();
-    let thresholds = opts.complexities.iter().map(|v| v.1).collect();
+    let complexity = args.complexities.iter().map(|v| v.0).collect();
+    let thresholds = args.complexities.iter().map(|v| v.1).collect();
 
     // Enable filter to log the information contained in the lib.
     let filter_layer = EnvFilter::try_from_default_env()
         .or_else(|_| {
-            if opts.verbose {
+            if args.verbose {
                 EnvFilter::try_new("debug")
             } else {
                 EnvFilter::try_new("info")
@@ -103,9 +79,9 @@ fn main() {
         .complexities(complexity)
         .thresholds(thresholds)
         .enable_write()
-        .output_format(opts.output_format)
-        .include(opts.include)
-        .exclude(opts.exclude)
-        .run(opts.source_path, opts.output_path)
+        .output_format(args.output_format)
+        .include(args.include)
+        .exclude(args.exclude)
+        .run(args.source_path, args.output_path)
         .unwrap();
 }
