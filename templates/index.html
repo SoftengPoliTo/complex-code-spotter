@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+
+    <!-- START HEAD -->
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <title>Index</title>
+        <!-- Bulma Version 0.9.4-->
+        <link rel="stylesheet" href="https://unpkg.com/bulma@0.9.4/css/bulma.min.css" />
+        <!-- Import Font Awesome icons -->
+        <script defer src="https://use.fontawesome.com/releases/v5.3.1/js/all.js"></script>
+<!-- Format long links -->
+<style>
+.break-links {
+
+  /* These are technically the same, but use both */
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+
+  -ms-word-break: break-all;
+  /* This is the dangerous one in WebKit, as it breaks things wherever */
+  word-break: break-all;
+  /* Instead use this non-standard one: */
+  word-break: break-word;
+
+  /* Adds a hyphen where the word breaks, if supported (No Blink) */
+  -ms-hyphens: auto;
+  -moz-hyphens: auto;
+  -webkit-hyphens: auto;
+  hyphens: auto;
+}
+</style>
+    </head>
+    <!-- END HEAD -->
+
+    <!-- START BODY -->
+    <body>
+        <!-- START NAVBAR -->
+        <nav class="navbar is-success" role="navigation" aria-label="main navigation">
+            <div class="navbar-brand">
+            </div>
+        </nav>
+        <!-- END NAVBAR -->
+
+        <!-- START LINKS PANEL -->
+        <section class="hero is-fullheight">
+            <div class="hero-body">
+                <div class="container px-3">
+                    <div class="columns is-centered mb-5">
+                        <div class="column is-half">
+                            <nav class="panel is-success">
+                              <p class="panel-heading is-centered has-text-centered">
+                                Files
+                              </p>
+                              {%- for file in files -%}
+                              <a class="panel-block" href="{{ file }}" target="_blank">
+                                <span class="panel-icon">
+                                  <i class="fa fa-book" aria-hidden="true"></i>
+                                </span>
+                                <div class="break-links">{{ file }}</div>
+                              </a>
+                              {%- endfor -%}
+                            </nav>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- END LINKS PANEL -->
+    </body>
+    <!-- END BODY -->
+
+</html>

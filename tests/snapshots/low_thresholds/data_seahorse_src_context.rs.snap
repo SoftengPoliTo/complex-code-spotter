@@ -1,0 +1,42 @@
+---
+source: tests/mod.rs
+expression: snippet
+---
+source_path: data/seahorse/src/context.rs
+language: Rust
+snippets:
+  Cyclomatic:
+    - complexity: 7
+      start_line: 18
+      end_line: 51
+      text: "    pub fn new(args: Vec<String>, flags: Option<Vec<Flag>>, help_text: String) -> Self {\n        let mut v = Vec::new();\n        let mut parsed_args = args;\n        let flags_val = match flags {\n            Some(flags) => {\n                for flag in flags {\n                    if let Some(index) = flag.option_index(&parsed_args) {\n                        parsed_args.remove(index);\n\n                        let val = if flag.flag_type != FlagType::Bool {\n                            if parsed_args.len() <= index {\n                                None\n                            } else {\n                                Some(parsed_args.remove(index))\n                            }\n                        } else {\n                            None\n                        };\n                        v.push((flag.name.to_string(), flag.value(val)))\n                    } else {\n                        v.push((flag.name.to_string(), Err(FlagError::NotFound)))\n                    }\n                }\n                Some(v)\n            }\n            None => None,\n        };\n\n        Self {\n            args: parsed_args,\n            flags: flags_val,\n            help_text,\n        }\n    }"
+    - complexity: 5
+      start_line: 54
+      end_line: 67
+      text: "    fn result_flag_value(&self, name: &str) -> Result<FlagValue, FlagError> {\n        let flag = self\n            .flags\n            .as_ref()\n            .and_then(|flags| flags.iter().find(|flag| flag.0 == name));\n\n        match flag {\n            Some(f) => match &f.1 {\n                Ok(val) => Ok(val.to_owned()),\n                Err(e) => Err(e.to_owned()),\n            },\n            None => Err(FlagError::Undefined),\n        }\n    }"
+    - complexity: 3
+      start_line: 84
+      end_line: 90
+      text: "    pub fn bool_flag(&self, name: &str) -> bool {\n        let r = self.result_flag_value(name);\n        match r {\n            Ok(FlagValue::Bool(val)) => val,\n            _ => false,\n        }\n    }"
+    - complexity: 4
+      start_line: 106
+      end_line: 112
+      text: "    pub fn string_flag(&self, name: &str) -> Result<String, FlagError> {\n        let r = self.result_flag_value(name)?;\n        match r {\n            FlagValue::String(val) => Ok(val),\n            _ => Err(FlagError::TypeError),\n        }\n    }"
+    - complexity: 4
+      start_line: 128
+      end_line: 134
+      text: "    pub fn int_flag(&self, name: &str) -> Result<isize, FlagError> {\n        let r = self.result_flag_value(name)?;\n        match r {\n            FlagValue::Int(val) => Ok(val),\n            _ => Err(FlagError::TypeError),\n        }\n    }"
+    - complexity: 4
+      start_line: 150
+      end_line: 156
+      text: "    pub fn float_flag(&self, name: &str) -> Result<f64, FlagError> {\n        let r = self.result_flag_value(name)?;\n        match r {\n            FlagValue::Float(val) => Ok(val),\n            _ => Err(FlagError::TypeError),\n        }\n    }"
+  Cognitive:
+    - complexity: 18
+      start_line: 18
+      end_line: 51
+      text: "    pub fn new(args: Vec<String>, flags: Option<Vec<Flag>>, help_text: String) -> Self {\n        let mut v = Vec::new();\n        let mut parsed_args = args;\n        let flags_val = match flags {\n            Some(flags) => {\n                for flag in flags {\n                    if let Some(index) = flag.option_index(&parsed_args) {\n                        parsed_args.remove(index);\n\n                        let val = if flag.flag_type != FlagType::Bool {\n                            if parsed_args.len() <= index {\n                                None\n                            } else {\n                                Some(parsed_args.remove(index))\n                            }\n                        } else {\n                            None\n                        };\n                        v.push((flag.name.to_string(), flag.value(val)))\n                    } else {\n                        v.push((flag.name.to_string(), Err(FlagError::NotFound)))\n                    }\n                }\n                Some(v)\n            }\n            None => None,\n        };\n\n        Self {\n            args: parsed_args,\n            flags: flags_val,\n            help_text,\n        }\n    }"
+    - complexity: 3
+      start_line: 54
+      end_line: 67
+      text: "    fn result_flag_value(&self, name: &str) -> Result<FlagValue, FlagError> {\n        let flag = self\n            .flags\n            .as_ref()\n            .and_then(|flags| flags.iter().find(|flag| flag.0 == name));\n\n        match flag {\n            Some(f) => match &f.1 {\n                Ok(val) => Ok(val.to_owned()),\n                Err(e) => Err(e.to_owned()),\n            },\n            None => Err(FlagError::Undefined),\n        }\n    }"
+

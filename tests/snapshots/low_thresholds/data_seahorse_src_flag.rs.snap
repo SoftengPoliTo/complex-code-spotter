@@ -1,0 +1,58 @@
+---
+source: tests/mod.rs
+expression: snippet
+---
+source_path: data/seahorse/src/flag.rs
+language: Rust
+snippets:
+  Cyclomatic:
+    - complexity: 4
+      start_line: 47
+      end_line: 74
+      text: "    pub fn new<T: Into<String>>(name: T, flag_type: FlagType) -> Self {\n        let name = name.into();\n        if name.starts_with('-') {\n            panic!(\n                r#\"\"{}\" is invalid flag name. Flag name cannnot start with \"-\".\"#,\n                name\n            )\n        }\n        if name.contains('=') {\n            panic!(\n                r#\"\"{}\" is invalid flag name. Flag name cannnot contain \"=\".\"#,\n                name\n            )\n        }\n        if name.contains(' ') {\n            panic!(\n                r#\"\"{}\" is invalid flag name. Flag name cannnot contain whitespaces.\"#,\n                name\n            )\n        }\n\n        Self {\n            name,\n            description: None,\n            flag_type,\n            alias: None,\n        }\n    }"
+    - complexity: 2
+      start_line: 105
+      end_line: 112
+      text: "    pub fn alias<T: Into<String>>(mut self, name: T) -> Self {\n        if let Some(ref mut alias) = self.alias {\n            (*alias).push(name.into());\n        } else {\n            self.alias = Some(vec![name.into()]);\n        }\n        self\n    }"
+    - complexity: 3
+      start_line: 115
+      end_line: 122
+      text: "    pub fn option_index(&self, v: &[String]) -> Option<usize> {\n        match &self.alias {\n            Some(alias) => v.iter().position(|r| {\n                r == &format!(\"--{}\", &self.name) || alias.iter().any(|a| r == &format!(\"-{}\", a))\n            }),\n            None => v.iter().position(|r| r == &format!(\"--{}\", &self.name)),\n        }\n    }"
+    - complexity: 2
+      start_line: 117
+      end_line: 119
+      text: "            Some(alias) => v.iter().position(|r| {\n                r == &format!(\"--{}\", &self.name) || alias.iter().any(|a| r == &format!(\"-{}\", a))\n            }),"
+    - complexity: 15
+      start_line: 125
+      end_line: 147
+      text: "    pub fn value(&self, v: Option<String>) -> Result<FlagValue, FlagError> {\n        match self.flag_type {\n            FlagType::Bool => Ok(FlagValue::Bool(true)),\n            FlagType::String => match v {\n                Some(s) => Ok(FlagValue::String(s)),\n                None => Err(FlagError::ArgumentError),\n            },\n            FlagType::Int => match v {\n                Some(i) => match i.parse::<isize>() {\n                    Ok(i) => Ok(FlagValue::Int(i)),\n                    Err(_) => Err(FlagError::ValueTypeError),\n                },\n                None => Err(FlagError::ArgumentError),\n            },\n            FlagType::Float => match v {\n                Some(f) => match f.parse::<f64>() {\n                    Ok(f) => Ok(FlagValue::Float(f)),\n                    Err(_) => Err(FlagError::ValueTypeError),\n                },\n                None => Err(FlagError::ArgumentError),\n            },\n        }\n    }"
+    - complexity: 3
+      start_line: 196
+      end_line: 209
+      text: "    fn bool_flag_test() {\n        let bool_flag = Flag::new(\"bool\", FlagType::Bool);\n        let v = vec![\n            \"cli\".to_string(),\n            \"command\".to_string(),\n            \"args\".to_string(),\n            \"--bool\".to_string(),\n        ];\n\n        match bool_flag.value(Some(v[3].to_owned())) {\n            Ok(FlagValue::Bool(val)) => assert!(val),\n            _ => assert!(false),\n        }\n    }"
+    - complexity: 3
+      start_line: 212
+      end_line: 226
+      text: "    fn string_flag_test() {\n        let string_flag = Flag::new(\"string\", FlagType::String);\n        let v = vec![\n            \"cli\".to_string(),\n            \"command\".to_string(),\n            \"args\".to_string(),\n            \"--string\".to_string(),\n            \"test\".to_string(),\n        ];\n\n        match string_flag.value(Some(v[4].to_owned())) {\n            Ok(FlagValue::String(val)) => assert_eq!(\"test\".to_string(), val),\n            _ => assert!(false),\n        }\n    }"
+    - complexity: 3
+      start_line: 229
+      end_line: 243
+      text: "    fn int_flag_test() {\n        let int_flag = Flag::new(\"int\", FlagType::Int);\n        let v = vec![\n            \"cli\".to_string(),\n            \"command\".to_string(),\n            \"args\".to_string(),\n            \"--int\".to_string(),\n            \"100\".to_string(),\n        ];\n\n        match int_flag.value(Some(v[4].to_owned())) {\n            Ok(FlagValue::Int(val)) => assert_eq!(100, val),\n            _ => assert!(false),\n        }\n    }"
+    - complexity: 3
+      start_line: 246
+      end_line: 260
+      text: "    fn float_flag_test() {\n        let float_flag = Flag::new(\"float\", FlagType::Float);\n        let v = vec![\n            \"cli\".to_string(),\n            \"command\".to_string(),\n            \"args\".to_string(),\n            \"--float\".to_string(),\n            \"1.23\".to_string(),\n        ];\n\n        match float_flag.value(Some(v[4].to_owned())) {\n            Ok(FlagValue::Float(val)) => assert_eq!(1.23, val),\n            _ => assert!(false),\n        }\n    }"
+  Cognitive:
+    - complexity: 3
+      start_line: 47
+      end_line: 74
+      text: "    pub fn new<T: Into<String>>(name: T, flag_type: FlagType) -> Self {\n        let name = name.into();\n        if name.starts_with('-') {\n            panic!(\n                r#\"\"{}\" is invalid flag name. Flag name cannnot start with \"-\".\"#,\n                name\n            )\n        }\n        if name.contains('=') {\n            panic!(\n                r#\"\"{}\" is invalid flag name. Flag name cannnot contain \"=\".\"#,\n                name\n            )\n        }\n        if name.contains(' ') {\n            panic!(\n                r#\"\"{}\" is invalid flag name. Flag name cannnot contain whitespaces.\"#,\n                name\n            )\n        }\n\n        Self {\n            name,\n            description: None,\n            flag_type,\n            alias: None,\n        }\n    }"
+    - complexity: 2
+      start_line: 105
+      end_line: 112
+      text: "    pub fn alias<T: Into<String>>(mut self, name: T) -> Self {\n        if let Some(ref mut alias) = self.alias {\n            (*alias).push(name.into());\n        } else {\n            self.alias = Some(vec![name.into()]);\n        }\n        self\n    }"
+    - complexity: 13
+      start_line: 125
+      end_line: 147
+      text: "    pub fn value(&self, v: Option<String>) -> Result<FlagValue, FlagError> {\n        match self.flag_type {\n            FlagType::Bool => Ok(FlagValue::Bool(true)),\n            FlagType::String => match v {\n                Some(s) => Ok(FlagValue::String(s)),\n                None => Err(FlagError::ArgumentError),\n            },\n            FlagType::Int => match v {\n                Some(i) => match i.parse::<isize>() {\n                    Ok(i) => Ok(FlagValue::Int(i)),\n                    Err(_) => Err(FlagError::ValueTypeError),\n                },\n                None => Err(FlagError::ArgumentError),\n            },\n            FlagType::Float => match v {\n                Some(f) => match f.parse::<f64>() {\n                    Ok(f) => Ok(FlagValue::Float(f)),\n                    Err(_) => Err(FlagError::ValueTypeError),\n                },\n                None => Err(FlagError::ArgumentError),\n            },\n        }\n    }"
+

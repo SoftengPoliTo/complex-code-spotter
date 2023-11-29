@@ -20,26 +20,28 @@ pub use metrics::Complexity;
 pub use output::OutputFormat;
 pub use snippets::Snippets;
 
+use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread::available_parallelism;
 
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use rust_code_analysis::{get_function_spaces, guess_language, read_file_with_eol};
+use tracing::info;
 
 use concurrent::{ConcurrentRunner, FilesData};
 use error::{Error, Result};
 use non_utf8::encode_to_utf8;
 use snippets::get_code_snippets;
 
-#[derive(Debug)]
-struct Parameters {
+#[derive(Debug, Default)]
+struct Parameters<'a> {
     output_format: OutputFormat,
-    write: bool,
+    output_path: Option<&'a Path>,
+    is_single_file: bool,
     include: Vec<String>,
     exclude: Vec<String>,
-    complexities: Vec<Complexity>,
-    thresholds: Vec<usize>,
+    complexities: Vec<(Complexity, usize)>,
 }
 
 /// Produce snippets of complex code for a source file.
@@ -49,24 +51,20 @@ struct Parameters {
 /// Write on files is disabled by default, but when enabled,
 /// *markdown* is the output format.
 #[derive(Debug)]
-pub struct SnippetsProducer(Parameters);
+pub struct SnippetsProducer<'a>(Parameters<'a>);
 
-impl Default for SnippetsProducer {
+impl<'a> Default for SnippetsProducer<'a> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl SnippetsProducer {
+impl<'a> SnippetsProducer<'a> {
     /// Creates a new `SnippetsProducer` instance.
     pub fn new() -> Self {
         Self(Parameters {
-            output_format: OutputFormat::Markdown,
-            write: false,
-            include: Vec::new(),
-            exclude: Vec::new(),
-            complexities: vec![Complexity::Cyclomatic],
-            thresholds: vec![15],
+            complexities: vec![(Complexity::Cyclomatic, 15)],
+            ..Default::default()
         })
     }
 
@@ -83,20 +81,20 @@ impl SnippetsProducer {
     }
 
     /// Sets all complexities metric that will be computed.
-    pub fn complexities(mut self, complexities: Vec<Complexity>) -> Self {
+    pub fn complexities(mut self, complexities: Vec<(Complexity, usize)>) -> Self {
         self.0.complexities = complexities;
         self
     }
 
-    /// Sets the respective thresholds associated to each complexity metric.
-    pub fn thresholds(mut self, thresholds: Vec<usize>) -> Self {
-        self.0.thresholds = thresholds.into_iter().map(|v| v.min(100)).collect();
+    /// Sets output path.
+    pub fn output(mut self, path: &'a Path) -> Self {
+        self.0.output_path = Some(path);
         self
     }
 
-    /// Enables writing on files.
-    pub fn enable_write(mut self) -> Self {
-        self.0.write = true;
+    /// Whether the output file is a single file path.
+    pub fn is_single_file(mut self, is_single_file: bool) -> Self {
+        self.0.is_single_file = is_single_file;
         self
     }
 
@@ -107,32 +105,34 @@ impl SnippetsProducer {
     }
 
     /// Runs the complex code snippets producer.
-    pub fn run<P: AsRef<Path>>(
-        self,
-        source_path: P,
-        output_path: P,
-    ) -> Result<Option<Vec<Snippets>>> {
-        // Check if output path is a file.
-        if output_path.as_ref().is_file() {
-            return Err(Error::FormatPath(
-                "Output path MUST be a directory".to_string(),
-            ));
-        }
-
-        // Check that each complexity has an associated threshold.
-        if self.0.complexities.len() != self.0.thresholds.len() {
-            return Err(Error::Thresholds);
+    pub fn run<P: AsRef<Path>>(self, source_path: P) -> Result<Option<Vec<Snippets>>> {
+        // Check if output path is a directory.
+        if self
+            .0
+            .output_path
+            .map_or(false, |p| p.is_file() && !self.0.is_single_file)
+        {
+            return Err(Error::FormatPath("Output path MUST be a directory"));
+        } else if self // Check if output path is a file.
+            .0
+            .output_path
+            .map_or(false, |p| p.is_dir() && self.0.is_single_file)
+        {
+            return Err(Error::FormatPath("Output path MUST be a file"));
         }
 
         // Create container for snippets.
         let snippets_context = Arc::new(Mutex::new(Vec::new()));
 
+        // Retrieve the number of available threads
         let num_jobs = available_parallelism()?.get();
+        // Define the configuration data
         let cfg = SnippetsConfig {
             complexities: self.0.complexities,
-            thresholds: self.0.thresholds,
             snippets: snippets_context.clone(),
         };
+
+        // Define how to treat files
         let files_data = FilesData {
             include: Self::mk_globset(self.0.include),
             exclude: Self::mk_globset(self.0.exclude),
@@ -144,21 +144,23 @@ impl SnippetsProducer {
 
         // Retrieve snippets.
         let snippets_context = Arc::try_unwrap(snippets_context)
-            .map_err(|_| Error::Mutability("Unable to get computed snippets".to_string()))?
+            .map_err(|_| Error::Mutability(Cow::from("Unable to get computed snippets")))?
             .into_inner()?;
 
         // If there are no snippets, print a message informing that the code is
         // clean.
         if snippets_context.is_empty() {
-            println!("Congratulations! Your code is clean, it does not have any complexity!");
+            info!("Congratulations! Your code is clean, it does not have any complexity!");
             return Ok(None);
         }
 
         // Write files.
-        if self.0.write {
-            self.0
-                .output_format
-                .write_format(output_path, &snippets_context)?;
+        if let Some(output_path) = self.0.output_path {
+            self.0.output_format.write_output(
+                output_path,
+                self.0.is_single_file,
+                &snippets_context,
+            )?;
         }
 
         Ok(Some(snippets_context))
@@ -180,8 +182,7 @@ impl SnippetsProducer {
 
 #[derive(Debug)]
 struct SnippetsConfig {
-    complexities: Vec<Complexity>,
-    thresholds: Vec<usize>,
+    complexities: Vec<(Complexity, usize)>,
     snippets: Arc<Mutex<Vec<Snippets>>>,
 }
 
@@ -213,12 +214,11 @@ fn extract_file_snippets(source_path: PathBuf, cfg: &SnippetsConfig) -> Result<(
 
     // Get code snippets for each metric
     let snippets = get_code_snippets(
-        &spaces,
+        spaces,
         language.into(),
         source_path,
         source_file.as_ref(),
         &cfg.complexities,
-        &cfg.thresholds,
     );
 
     // If there are snippets, output file/files in the chosen format.
@@ -227,123 +227,4 @@ fn extract_file_snippets(source_path: PathBuf, cfg: &SnippetsConfig) -> Result<(
     }
 
     Ok(())
-}
-
-#[cfg(test)]
-mod test {
-    use std::{
-        fs::{create_dir_all, read_dir, remove_dir_all, File},
-        io::BufReader,
-        path::Path,
-    };
-
-    use super::*;
-
-    #[derive(Debug)]
-    struct Config<'a> {
-        source_path: &'a Path,
-        output_path: &'a Path,
-        compare_path: &'a Path,
-        complexities: Vec<Complexity>,
-        thresholds: Vec<usize>,
-    }
-
-    impl<'a> Config<'a> {
-        fn new(source_path: &'a Path, output_path: &'a Path, compare_path: &'a Path) -> Self {
-            Self {
-                source_path,
-                output_path,
-                compare_path,
-                complexities: Vec::new(),
-                thresholds: Vec::new(),
-            }
-        }
-
-        fn metrics(mut self, complexities: Vec<Complexity>, thresholds: Vec<usize>) -> Self {
-            self.complexities = complexities;
-            self.thresholds = thresholds;
-            self
-        }
-    }
-
-    fn read_file(path: &Path) -> std::io::Result<serde_json::Value> {
-        let file = File::open(path)?;
-        let reader = BufReader::new(file);
-
-        let json_file = serde_json::from_reader(reader)?;
-
-        Ok(json_file)
-    }
-
-    fn run_comparator(cfg: Config) {
-        // Create output directory.
-        create_dir_all(cfg.output_path).unwrap();
-
-        // Produce snippets.
-        SnippetsProducer::new()
-            .complexities(cfg.complexities)
-            .thresholds(cfg.thresholds)
-            .output_format(OutputFormat::Json)
-            .run(cfg.source_path, cfg.output_path)
-            .unwrap();
-
-        // Retrieve output and comparison JSON paths.
-        let output_paths = read_dir(cfg.output_path).unwrap();
-        let compare_paths = read_dir(cfg.compare_path).unwrap();
-
-        // Compare output and comparison JSON files.
-        output_paths
-            .zip(compare_paths)
-            .for_each(|(output, compare)| {
-                let json_output = read_file(&output.unwrap().path()).unwrap();
-                let compare_output = read_file(&compare.unwrap().path()).unwrap();
-                // Catch the panic when test is going to fail.
-                let result = std::panic::catch_unwind(|| {
-                    assert_eq!(json_output, compare_output);
-                });
-                if let Err(result) = result {
-                    // Remove output directory.
-                    remove_dir_all(cfg.output_path).unwrap();
-                    // Show the error.
-                    panic!("{:?}", result);
-                } else {
-                    assert!(result.is_ok());
-                }
-            });
-
-        // Remove output directory.
-        remove_dir_all(cfg.output_path).unwrap();
-    }
-
-    #[test]
-    fn seahorse_high_thresholds() {
-        // Define configuration parameters.
-        let cfg = Config::new(
-            Path::new("data/seahorse/src"),
-            Path::new("data/seahorse/output_high"),
-            Path::new("data/seahorse/compare_high"),
-        )
-        .metrics(
-            vec![Complexity::Cyclomatic, Complexity::Cognitive],
-            vec![15, 15],
-        );
-
-        // Run comparator.
-        run_comparator(cfg);
-    }
-
-    #[test]
-    fn seahorse_low_thresholds() {
-        let cfg = Config::new(
-            Path::new("data/seahorse/src"),
-            Path::new("data/seahorse/output_low"),
-            Path::new("data/seahorse/compare_low"),
-        )
-        .metrics(
-            vec![Complexity::Cyclomatic, Complexity::Cognitive],
-            vec![8, 8],
-        );
-
-        run_comparator(cfg);
-    }
 }

@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use thiserror::Error;
 
 use crate::concurrent::ConcurrentErrors;
@@ -22,19 +24,22 @@ pub enum Error {
     NonUtf8Conversion,
     /// Path format.
     #[error("{0}")]
-    FormatPath(String),
+    FormatPath(&'static str),
     /// Concurrent failures.
     #[error("Concurrent failure: {0}")]
-    Concurrent(String),
+    Concurrent(Cow<'static, str>),
     /// Mutability access failures.
     #[error("Mutability failure: {0}")]
-    Mutability(String),
+    Mutability(Cow<'static, str>),
     /// Less thresholds than complexity metrics.
     #[error("Each complexity metric MUST have a threshold.")]
     Thresholds,
     /// A more generic I/O error.
     #[error("I/O error")]
     Io(#[from] std::io::Error),
+    #[error("Template error")]
+    /// A template error.
+    Template(#[from] minijinja::Error),
     #[error("Json error")]
     /// A Json output error.
     JsonOutput(#[from] serde_json::Error),
@@ -48,13 +53,13 @@ impl From<crate::concurrent::ConcurrentErrors> for Error {
             ConcurrentErrors::Receiver(e) => format!("Receiver: {e}"),
             ConcurrentErrors::Thread(e) => format!("Thread: {e}"),
         };
-        Self::Concurrent(value)
+        Self::Concurrent(Cow::from(value))
     }
 }
 
 impl<T> From<std::sync::PoisonError<T>> for Error {
     fn from(e: std::sync::PoisonError<T>) -> Self {
-        Self::Mutability(e.to_string())
+        Self::Mutability(Cow::from(e.to_string()))
     }
 }
 

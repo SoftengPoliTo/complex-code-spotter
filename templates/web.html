@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+
+    <!-- START HEAD -->
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <title>Snippets</title>
+        <!-- Bulma Version 0.9.4-->
+        <link rel="stylesheet" href="https://unpkg.com/bulma@0.9.4/css/bulma.min.css" />
+        <!-- Import Font Awesome icons -->
+        <script defer src="https://use.fontawesome.com/releases/v5.3.1/js/all.js"></script>
+        <!-- Highlight code -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+        <!-- Highlight code themes -->
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlightjs-themes@1.0.0/androidstudio.css" />
+<style>
+pre {
+  background-color: white;
+}
+</style>
+    </head>
+    <!-- END HEAD -->
+
+    <!-- START BODY -->
+    <body>
+        <!-- START NAVBAR -->
+        <nav class="navbar is-success" role="navigation" aria-label="main navigation">
+            <div class="navbar-brand">
+                <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarBasicExample">
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                </a>
+            </div>
+
+            <div id="menu" class="navbar-menu">
+                <div class="navbar-start">
+                    {%- for complexity, _ in snippets -%}
+                    <a class="navbar-item" onclick="show('{{ complexity }}')">
+                        {{ complexity }}
+                    </a>
+                    {%- endfor -%}
+                </div>
+            </div>
+        </nav>
+        <!-- END NAVBAR -->
+
+        <!-- START LINKS PANEL -->
+        <section class="hero is-fullheight">
+            <div class="hero-body">
+                <div id="data" class="container px-3">
+                    {% for complexity, snippet in snippets %}
+                    <div id="{{ complexity }}" {% if loop.index > 1 %}hidden{% endif %}>
+                        <h2 class="title is-2 has-text-centered mb-6">{{ complexity }}</h2>
+                        {% for data in snippet %}
+                        <div class="columns is-centered mb-5">
+                            <div class="column is-half">
+                                <div class="card">
+                                    <header class="card-header has-background-success is-shadowless">
+                                        <p class="card-header-title is-centered">Snippet {{ loop.index }}</p>
+                                    </header>
+                                    <div class="card-content">
+                                        <div class="field is-centered has-text-centered">
+                                            <label class="label is-size-5-mobile mb-4">
+                                                Complexity value
+                                            </label>
+                                            <p class="control">
+                                              {{ data.complexity }}
+                                            </p>
+                                        </div>
+                                        <div class="field is-centered has-text-centered">
+                                            <label class="label is-size-5-mobile mb-4">
+                                                Start line
+                                            </label>
+                                            <p class="control">
+                                              {{ data.start_line }}
+                                            </p>
+                                        </div>
+                                        <div class="field is-centered has-text-centered">
+                                            <label class="label is-size-5-mobile mb-4">
+                                                End line
+                                            </label>
+                                            <p class="control">
+                                              {{ data.end_line }}
+                                            </p>
+                                        </div>
+                                        <div class="field is-centered">
+                                            <label class="label is-size-5-mobile mb-4 has-text-centered">
+                                                Code
+                                            </label>
+                                            <div class="control">
+                                                <pre class="block">
+{{ data.text }}
+                                                </pre>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+        <!-- END LINKS PANEL -->
+    </body>
+    <!-- END BODY -->
+
+<script>
+const preTags = document.getElementsByTagName('pre');
+const size = preTags.length;
+
+for (var i=0; i < size; i++) {
+    preTags[i].innerHTML = '<code>'+preTags[i].innerHTML+'</code>'; // wrap content of pre tag in code tag
+}
+
+hljs.highlightAll(); // apply highlighting
+
+
+document.addEventListener('DOMContentLoaded', () => {
+
+  // Get all "navbar-burger" elements
+  const $navbarBurgers = Array.prototype.slice.call(document.querySelectorAll('.navbar-burger'), 0);
+
+  // Add a click event on each of them
+  $navbarBurgers.forEach( el => {
+    el.addEventListener('click', () => {
+
+      // Get the target from the "data-target" attribute
+      const target = el.dataset.target;
+      const $target = document.getElementById(target);
+
+      // Toggle the "is-active" class on both the "navbar-burger" and the "navbar-menu"
+      el.classList.toggle('is-active');
+      $target.classList.toggle('is-active');
+
+    });
+  });
+
+});
+
+function show(metric) {
+  // Get main container
+  const mainContainer = document.getElementById("data");
+
+  // Iterate over children
+  const children = mainContainer.children;
+  for (child of children) {
+      // Remove hidden attribute to show metric
+      if(child.id == metric) {
+        child.removeAttribute("hidden");
+      } else {
+        // Hide attribute
+        child.setAttribute("hidden", "");
+      }
+  }
+}
+</script>
+
+</html>
