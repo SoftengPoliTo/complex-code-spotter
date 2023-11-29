@@ -1,4 +1,6 @@
 use std::fmt;
+use std::io::{Error, ErrorKind};
+use std::str::FromStr;
 
 use rust_code_analysis::FuncSpace;
 use serde::Serialize;
@@ -35,6 +37,21 @@ pub enum Complexity {
     Cyclomatic,
     /// Cognitive metric.
     Cognitive,
+}
+
+impl FromStr for Complexity {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "cyclomatic" => Ok(Self::Cyclomatic),
+            "cognitive" => Ok(Self::Cognitive),
+            _ => Err(Error::new(
+                ErrorKind::Other,
+                "The complexity metric does not exist",
+            )),
+        }
+    }
 }
 
 impl fmt::Display for Complexity {
