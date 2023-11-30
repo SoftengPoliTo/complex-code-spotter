@@ -33,7 +33,7 @@ use error::{Error, Result};
 use non_utf8::encode_to_utf8;
 use snippets::get_code_snippets;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct Parameters {
     output_format: OutputFormat,
     write: bool,
@@ -62,12 +62,8 @@ impl SnippetsProducer {
     /// Creates a new `SnippetsProducer` instance.
     pub fn new() -> Self {
         Self(Parameters {
-            output_format: OutputFormat::Markdown,
-            write: false,
-            include: Vec::new(),
-            exclude: Vec::new(),
-            complexities: vec![Complexity::Cyclomatic],
             thresholds: vec![15],
+            ..Default::default()
         })
     }
 
