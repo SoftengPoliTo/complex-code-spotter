@@ -1,6 +1,9 @@
+use std::fmt;
 use std::fs::{create_dir_all, File};
 use std::io::prelude::*;
+use std::io::{Error as IoError, ErrorKind};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 use tracing::debug;
 
@@ -8,22 +11,51 @@ use crate::Snippets;
 use crate::{Error, Result};
 
 /// Supported output formats.
-#[derive(clap::ValueEnum, Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum OutputFormat {
+    /// Json format.
+    #[default]
+    Json,
     /// Markdown format.
     Markdown,
     /// Html format.
     Html,
-    /// Json format.
-    Json,
     /// Enables all supported output formats.
     All,
 }
 
+impl FromStr for OutputFormat {
+    type Err = IoError;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s {
+            "json" => Ok(Self::Json),
+            "markdown" => Ok(Self::Markdown),
+            "html" => Ok(Self::Html),
+            "all" => Ok(Self::All),
+            _ => Err(IoError::new(
+                ErrorKind::Other,
+                "The selected output format does not exist",
+            )),
+        }
+    }
+}
+
+impl fmt::Display for OutputFormat {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Json => write!(f, "json"),
+            Self::Markdown => write!(f, "markdown"),
+            Self::Html => write!(f, "html"),
+            Self::All => write!(f, "all"),
+        }
+    }
+}
+
 impl OutputFormat {
     /// Default output format.
-    pub const fn default() -> &'static str {
-        "markdown"
+    pub const fn all() -> &'static [&'static str] {
+        &["json", "markdown", "html", "all"]
     }
 
     pub(crate) fn write_format<P: AsRef<Path>>(

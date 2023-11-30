@@ -30,7 +30,7 @@ impl ComplexityChecker for Cognitive {
 }
 
 /// Supported complexities metrics.
-#[derive(clap::ValueEnum, Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 pub enum Complexity {
     /// Cyclomatic metric.
     #[default]

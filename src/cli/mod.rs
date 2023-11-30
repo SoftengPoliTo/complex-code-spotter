@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::path::PathBuf;
 
+use clap::builder::TypedValueParser as _;
 use clap::Parser;
 
 use tracing_subscriber::EnvFilter;
@@ -54,7 +55,9 @@ pub(crate) struct Args {
     #[arg(long, short = 'X')]
     exclude: Vec<String>,
     /// Output format
-    #[arg(long, short = 'O')]
+    #[arg(long, short = 'O', default_value_t = OutputFormat::Json,
+        value_parser = clap::builder::PossibleValuesParser::new(OutputFormat::all())
+            .map(|s| s.parse::<OutputFormat>().unwrap()),)]
     output_format: OutputFormat,
     /// List of complexities metrics and thresholds considered for snippets
     #[arg(short, value_parser = parse_key_val::<Complexity, usize>, long_help = thresholds_long_help())]
