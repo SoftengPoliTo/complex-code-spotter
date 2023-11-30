@@ -14,15 +14,20 @@ use crate::Snippets;
 use crate::{Error, Result};
 
 // Builtin template macro to retrieve a template
-macro_rules! builtin_template {
-    ($template:expr) => {
-        include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/templates/",
-            $template
-        ))
-    };
+macro_rules! builtin_templates {
+    ($(($name:expr, $template:expr)),+) => {
+        [
+        $(
+            (
+                $name,
+                include_str!(concat!(env!("CARGO_MANIFEST_DIR"),"/templates/", $template)),
+            )
+        ),+
+        ]
+    }
 }
+
+static OUTPUT_TEMPLATES: &[(&str, &str)] = &builtin_templates![("md.markdown", "markdown.md")];
 
 /// Supported output formats.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -76,12 +81,18 @@ impl OutputFormat {
 
         match self {
             Self::All => {
-                Markdown::write_format(output_path, &filenames, snippets)?;
+                let environment = more_templates_environment()?;
+                Markdown::write_template(output_path, &filenames, snippets, &environment)?;
                 Html::write_format(output_path, &filenames, snippets)?;
                 Json::write_format(output_path, &filenames, snippets)
             }
             Self::Json => Json::write_format(output_path, &filenames, snippets),
-            Self::Markdown => Markdown::write_format(output_path, &filenames, snippets),
+            Self::Markdown => Markdown::write_template(
+                output_path,
+                &filenames,
+                snippets,
+                &single_template_environment(Markdown::TEMPLATE)?,
+            ),
             Self::Html => Html::write_format(output_path, &filenames, snippets),
         }
     }
@@ -122,6 +133,23 @@ where
     writer(final_path)
 }
 
+fn more_templates_environment() -> Result<Environment<'static>> {
+    let mut environment = Environment::new();
+    for (template_name, template_file) in OUTPUT_TEMPLATES {
+        environment.add_template(template_name, template_file)?;
+    }
+    Ok(environment)
+}
+
+fn single_template_environment(
+    template: (&'static str, &'static str),
+) -> Result<Environment<'static>> {
+    let mut environment = Environment::new();
+    let (template_name, template_file) = template;
+    environment.add_template(template_name, template_file)?;
+    Ok(environment)
+}
+
 trait WriteFormat {
     const EXTENSION: &'static str;
     const DIR: &'static str;
@@ -129,15 +157,32 @@ trait WriteFormat {
     fn write_format(path: &Path, filenames: &[String], snippets: &[Snippets]) -> Result<()>;
 }
 
+trait WriteTemplateFormat {
+    const EXTENSION: &'static str;
+    const DIR: &'static str;
+    const TEMPLATE: (&'static str, &'static str);
+
+    fn write_template(
+        path: &Path,
+        filenames: &[String],
+        snippets: &[Snippets],
+        environment: &Environment,
+    ) -> Result<()>;
+}
+
 struct Markdown;
 
-impl WriteFormat for Markdown {
+impl WriteTemplateFormat for Markdown {
     const EXTENSION: &'static str = "md";
     const DIR: &'static str = "markdown";
+    const TEMPLATE: (&'static str, &'static str) = ("md.markdown", "markdown.md");
 
-    fn write_format(path: &Path, filenames: &[String], snippets: &[Snippets]) -> Result<()> {
-        let mut environment = Environment::new();
-        environment.add_template("md.markdown", builtin_template!("markdown.md"))?;
+    fn write_template(
+        path: &Path,
+        filenames: &[String],
+        snippets: &[Snippets],
+        environment: &Environment,
+    ) -> Result<()> {
         let template = environment.get_template("md.markdown")?;
 
         let dir = create_dir(path, Self::DIR)?;
