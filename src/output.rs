@@ -133,6 +133,7 @@ where
     writer(final_path)
 }
 
+#[inline(always)]
 fn more_templates_environment() -> Result<Environment<'static>> {
     let mut environment = Environment::new();
     for (template_name, template_file) in OUTPUT_TEMPLATES {
@@ -141,6 +142,7 @@ fn more_templates_environment() -> Result<Environment<'static>> {
     Ok(environment)
 }
 
+#[inline(always)]
 fn single_template_environment(
     template: (&'static str, &'static str),
 ) -> Result<Environment<'static>> {
@@ -157,7 +159,7 @@ trait WriteFormat {
     fn write_format(path: &Path, filenames: &[String], snippets: &[Snippets]) -> Result<()>;
 }
 
-trait WriteTemplateFormat {
+trait WriteTemplate {
     const EXTENSION: &'static str;
     const DIR: &'static str;
     const TEMPLATE: (&'static str, &'static str);
@@ -172,7 +174,7 @@ trait WriteTemplateFormat {
 
 struct Markdown;
 
-impl WriteTemplateFormat for Markdown {
+impl WriteTemplate for Markdown {
     const EXTENSION: &'static str = "md";
     const DIR: &'static str = "markdown";
     const TEMPLATE: (&'static str, &'static str) = ("md.markdown", "markdown.md");
@@ -183,7 +185,7 @@ impl WriteTemplateFormat for Markdown {
         snippets: &[Snippets],
         environment: &Environment,
     ) -> Result<()> {
-        let template = environment.get_template("md.markdown")?;
+        let template = environment.get_template(Self::TEMPLATE.0)?;
 
         let dir = create_dir(path, Self::DIR)?;
 
