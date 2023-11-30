@@ -14,19 +14,20 @@ edition = "2021"
 name = "complex-code-spotter"
 
 [dependencies]
+cargo_metadata = "0.15.0"
 clap = { version = "^4.4", features = ["derive"] }
-rust-code-analysis = "^0.0.24"
-globset = "^0.4"
-html-escape = "^0.2"
 crossbeam = "^0.8"
 encoding_rs = "^0.8"
+globset = "^0.4"
+html-escape = "^0.2"
+minijinja = "^1"
+rust-code-analysis = "^0.0.24"
 serde = { version = "^1.0", features = ["derive"] }
 serde_json = "^1.0"
 thiserror = "^1.0"
 tracing = "^0.1"
 tracing-subscriber = { version = "^0.3", features = ["env-filter"] }
 walkdir = "^2.3"
-cargo_metadata = "0.15.0"
 
 [profile.release]
 opt-level = 3

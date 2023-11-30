@@ -35,6 +35,9 @@ pub enum Error {
     /// A more generic I/O error.
     #[error("I/O error")]
     Io(#[from] std::io::Error),
+    #[error("Template error")]
+    /// A template error.
+    Template(#[from] minijinja::Error),
     #[error("Json error")]
     /// A Json output error.
     JsonOutput(#[from] serde_json::Error),

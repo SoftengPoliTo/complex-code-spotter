@@ -14,7 +14,7 @@ const fn thresholds_long_help() -> &'static str {
    Thresholds values of 0 and 100 are not recommended, better intermediate values"
 }
 
-/// Parse a single key-value pair
+// Parse a single key-value pair
 fn parse_key_val<T, U>(s: &str) -> Result<(T, U), Box<dyn Error + Send + Sync + 'static>>
 where
     T: std::str::FromStr,

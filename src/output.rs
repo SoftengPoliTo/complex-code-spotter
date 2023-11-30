@@ -1,14 +1,28 @@
+use std::collections::HashMap;
 use std::fmt;
-use std::fs::{create_dir_all, File};
+use std::fs::{create_dir_all, write, File};
 use std::io::prelude::*;
-use std::io::{Error as IoError, ErrorKind};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+
+use minijinja::value::Value;
+use minijinja::Environment;
 
 use tracing::debug;
 
 use crate::Snippets;
 use crate::{Error, Result};
+
+// Builtin template macro to retrieve a template
+macro_rules! builtin_template {
+    ($template:expr) => {
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/",
+            $template
+        ))
+    };
+}
 
 /// Supported output formats.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -25,7 +39,7 @@ pub enum OutputFormat {
 }
 
 impl FromStr for OutputFormat {
-    type Err = IoError;
+    type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s {
@@ -33,22 +47,20 @@ impl FromStr for OutputFormat {
             "markdown" => Ok(Self::Markdown),
             "html" => Ok(Self::Html),
             "all" => Ok(Self::All),
-            _ => Err(IoError::new(
-                ErrorKind::Other,
-                "The selected output format does not exist",
-            )),
+            _ => Err(format!("Unknown output format: {s}")),
         }
     }
 }
 
 impl fmt::Display for OutputFormat {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::Json => write!(f, "json"),
-            Self::Markdown => write!(f, "markdown"),
-            Self::Html => write!(f, "html"),
-            Self::All => write!(f, "all"),
-        }
+        let s = match self {
+            Self::Json => "json",
+            Self::Markdown => "markdown",
+            Self::Html => "html",
+            Self::All => "all",
+        };
+        s.fmt(f)
     }
 }
 
@@ -98,27 +110,29 @@ fn create_filenames(snippets: &[Snippets]) -> Vec<String> {
         .collect()
 }
 
+#[inline(always)]
+fn create_dir(path: &Path, dir: &str) -> Result<PathBuf> {
+    let dir = path.join(dir);
+    debug!("Creating {:?}", dir);
+    create_dir_all(&dir)?;
+    Ok(dir)
+}
+
+#[inline(always)]
+fn create_file<W>(path: PathBuf, extension: &str, writer: W) -> Result<()>
+where
+    W: FnOnce(PathBuf) -> Result<()>,
+{
+    let final_path = path.with_extension(extension);
+    debug!("Creating {:?}", final_path);
+    writer(final_path)
+}
+
 trait WriteFormat {
     const EXTENSION: &'static str;
     const DIR: &'static str;
 
     fn write_format(path: &Path, filenames: &[String], snippets: &[Snippets]) -> Result<()>;
-
-    #[inline(always)]
-    fn create_file(path: &Path, extension: &str) -> std::io::Result<File> {
-        let final_path = path.with_extension(extension);
-        debug!("Creating {:?}", final_path);
-
-        File::create(final_path)
-    }
-
-    #[inline(always)]
-    fn create_dir(path: &Path, dir: &str) -> Result<PathBuf> {
-        let dir = path.join(dir);
-        debug!("Creating {:?}", dir);
-        create_dir_all(&dir)?;
-        Ok(dir)
-    }
 }
 
 struct Markdown;
@@ -128,42 +142,31 @@ impl WriteFormat for Markdown {
     const DIR: &'static str = "markdown";
 
     fn write_format(path: &Path, filenames: &[String], snippets: &[Snippets]) -> Result<()> {
-        let dir = Self::create_dir(path, Self::DIR)?;
+        let mut environment = Environment::new();
+        environment.add_template("md.markdown", builtin_template!("markdown.md"))?;
+        let template = environment.get_template("md.markdown")?;
+
+        let dir = create_dir(path, Self::DIR)?;
 
         for (filename, snippet) in filenames.iter().zip(snippets) {
-            let mut markdown_file = Self::create_file(&dir.join(filename), Self::EXTENSION)?;
-
+            let mut context = HashMap::new();
+            context.insert(
+                "language",
+                Value::from_serializable(&snippet.language.name()),
+            );
             for (complexity_name, all_snippets) in snippet.snippets.iter() {
-                writeln!(
-                    markdown_file,
-                    r#"# {complexity_name}
-                {snippets}"#,
-                    snippets = all_snippets
-                        .iter()
-                        .map(|v| {
-                            format!(
-                                r#"
-*complexity:* **{complexity}**
-
-*start line:* **{start_line}**
-
-*end line:* **{end_line}**
-
-```{language}
-{text}
-```"#,
-                                complexity = v.complexity,
-                                start_line = v.start_line,
-                                end_line = v.end_line,
-                                language = snippet.language.name(),
-                                text = v.text
-                            )
-                        })
-                        .collect::<Vec<String>>()
-                        .join("\n\n")
-                )?;
+                context.insert("complexity_name", Value::from_serializable(complexity_name));
+                context.insert("snippets", Value::from_serializable(all_snippets));
             }
+
+            // Fill template
+            let filled_template = template.render(&context)?;
+
+            let final_path = dir.join(filename).with_extension(Self::EXTENSION);
+            debug!("Creating {:?}", final_path);
+            write(final_path, filled_template)?;
         }
+
         Ok(())
     }
 }
@@ -175,7 +178,7 @@ impl WriteFormat for Html {
     const DIR: &'static str = "html";
 
     fn write_format(path: &Path, filenames: &[String], snippets: &[Snippets]) -> Result<()> {
-        let dir = Self::create_dir(path, Self::DIR)?;
+        let dir = create_dir(path, Self::DIR)?;
 
         let mut index_body = Vec::new();
 
@@ -272,12 +275,13 @@ impl WriteFormat for Json {
     const DIR: &'static str = "json";
 
     fn write_format(path: &Path, filenames: &[String], snippets: &[Snippets]) -> Result<()> {
-        let dir = Self::create_dir(path, Self::DIR)?;
+        let dir = create_dir(path, Self::DIR)?;
 
         for (filename, snippet) in filenames.iter().zip(snippets) {
-            let json_file = Self::create_file(&dir.join(filename), Self::EXTENSION)?;
-
-            serde_json::to_writer_pretty(json_file, snippet)?;
+            create_file(dir.join(filename), Self::EXTENSION, |path| {
+                let json_file = File::create(path)?;
+                serde_json::to_writer_pretty(json_file, snippet).map_err(|e| e.into())
+            })?;
         }
         Ok(())
     }

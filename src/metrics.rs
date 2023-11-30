@@ -48,7 +48,7 @@ impl FromStr for Complexity {
             "cognitive" => Ok(Self::Cognitive),
             _ => Err(Error::new(
                 ErrorKind::Other,
-                "The complexity metric does not exist",
+                format!("Unknown complexity metric: {s}"),
             )),
         }
     }
@@ -56,10 +56,11 @@ impl FromStr for Complexity {
 
 impl fmt::Display for Complexity {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::Cyclomatic => write!(f, "cyclomatic"),
-            Self::Cognitive => write!(f, "cognitive"),
-        }
+        let s = match self {
+            Self::Cyclomatic => "cyclomatic",
+            Self::Cognitive => "cognitive",
+        };
+        s.fmt(f)
     }
 }
 
