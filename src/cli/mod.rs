@@ -61,7 +61,7 @@ pub(crate) struct Args {
     complexities: Vec<(Complexity, usize)>,
 }
 
-pub(crate) fn run_complex_code_spotter(args: Args, source_path: PathBuf) {
+pub(crate) fn run_complex_code_spotter(args: Args) {
     let complexity = args.complexities.iter().map(|v| v.0).collect();
     let thresholds = args.complexities.iter().map(|v| v.1).collect();
 
@@ -90,6 +90,6 @@ pub(crate) fn run_complex_code_spotter(args: Args, source_path: PathBuf) {
         .output_format(args.output_format)
         .include(args.include)
         .exclude(args.exclude)
-        .run(source_path, &args.output_path)
+        .run(args.source_path, args.output_path)
         .unwrap();
 }

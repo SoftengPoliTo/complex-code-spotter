@@ -20,7 +20,7 @@ pub use metrics::Complexity;
 pub use output::OutputFormat;
 pub use snippets::Snippets;
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread::available_parallelism;
 
@@ -107,7 +107,7 @@ impl SnippetsProducer {
     }
 
     /// Runs the complex code snippets producer.
-    pub fn run(self, source_path: PathBuf, output_path: &Path) -> Result<Option<Vec<Snippets>>> {
+    pub fn run(self, source_path: PathBuf, output_path: PathBuf) -> Result<Option<Vec<Snippets>>> {
         // Check if output path is a file.
         if output_path.is_file() {
             return Err(Error::FormatPath(

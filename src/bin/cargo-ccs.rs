@@ -21,7 +21,7 @@ struct Cli {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let Cli {
-        cargo_args: Cmd::Ccs(cargo_args),
+        cargo_args: Cmd::Ccs(mut cargo_args),
     } = Cli::parse();
 
     let mut cmd = cargo_metadata::MetadataCommand::new();
@@ -30,14 +30,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let metadata = cmd.exec()?;
-    let source_path = metadata.workspace_packages()[0]
+    cargo_args.args.source_path = metadata.workspace_packages()[0]
         .manifest_path
         .parent()
         .unwrap()
         .join("src")
         .into_std_path_buf();
 
-    run_complex_code_spotter(cargo_args.args, source_path);
+    run_complex_code_spotter(cargo_args.args);
 
     Ok(())
 }
