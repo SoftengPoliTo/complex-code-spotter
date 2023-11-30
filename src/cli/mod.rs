@@ -3,7 +3,9 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
-use complex_code_spotter::{Complexity, OutputFormat};
+use tracing_subscriber::EnvFilter;
+
+use complex_code_spotter::{Complexity, OutputFormat, SnippetsProducer};
 
 const fn thresholds_long_help() -> &'static str {
     "A threshold of 0 is the minimum allowed value, thus no threshold at all.\n\
@@ -41,20 +43,53 @@ pub(crate) struct Args {
     /// Path to the source files to be analyzed
     pub(crate) source_path: PathBuf,
     /// Output path containing the snippets of complex code for each file
-    pub(crate) output_path: PathBuf,
+    output_path: PathBuf,
     /// Output the generated paths as they are produced
     #[arg(short, long)]
-    pub(crate) verbose: bool,
+    verbose: bool,
     /// Glob to include files
     #[arg(long, short = 'I')]
-    pub(crate) include: Vec<String>,
+    include: Vec<String>,
     /// Glob to exclude files
     #[arg(long, short = 'X')]
-    pub(crate) exclude: Vec<String>,
+    exclude: Vec<String>,
     /// Output format
     #[arg(long, short = 'O')]
-    pub(crate) output_format: OutputFormat,
+    output_format: OutputFormat,
     /// List of complexities metrics and thresholds considered for snippets
     #[arg(short, value_parser = parse_key_val::<Complexity, usize>, long_help = thresholds_long_help())]
-    pub(crate) complexities: Vec<(Complexity, usize)>,
+    complexities: Vec<(Complexity, usize)>,
+}
+
+pub(crate) fn run_complex_code_spotter(args: Args, source_path: PathBuf) {
+    let complexity = args.complexities.iter().map(|v| v.0).collect();
+    let thresholds = args.complexities.iter().map(|v| v.1).collect();
+
+    // Enable filter to log the information contained in the lib.
+    let filter_layer = EnvFilter::try_from_default_env()
+        .or_else(|_| {
+            if args.verbose {
+                EnvFilter::try_new("debug")
+            } else {
+                EnvFilter::try_new("info")
+            }
+        })
+        .unwrap();
+
+    // Run tracer.
+    tracing_subscriber::fmt()
+        .without_time()
+        .with_env_filter(filter_layer)
+        .with_writer(std::io::stderr)
+        .init();
+
+    SnippetsProducer::new()
+        .complexities(complexity)
+        .thresholds(thresholds)
+        .enable_write()
+        .output_format(args.output_format)
+        .include(args.include)
+        .exclude(args.exclude)
+        .run(source_path, args.output_path)
+        .unwrap();
 }

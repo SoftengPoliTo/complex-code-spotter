@@ -3,11 +3,7 @@ mod cli;
 
 use clap::{Parser, Subcommand};
 
-use tracing_subscriber::EnvFilter;
-
-use complex_code_spotter::SnippetsProducer;
-
-use cli::CargoArgs;
+use cli::{run_complex_code_spotter, CargoArgs};
 
 #[derive(Subcommand)]
 enum Cmd {
@@ -41,35 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .join("src")
         .into_std_path_buf();
 
-    let complexity = cargo_args.args.complexities.iter().map(|v| v.0).collect();
-    let thresholds = cargo_args.args.complexities.iter().map(|v| v.1).collect();
-
-    // Enable filter to log the information contained in the lib.
-    let filter_layer = EnvFilter::try_from_default_env()
-        .or_else(|_| {
-            if cargo_args.args.verbose {
-                EnvFilter::try_new("debug")
-            } else {
-                EnvFilter::try_new("info")
-            }
-        })
-        .unwrap();
-
-    // Run tracer.
-    tracing_subscriber::fmt()
-        .without_time()
-        .with_env_filter(filter_layer)
-        .with_writer(std::io::stderr)
-        .init();
-
-    SnippetsProducer::new()
-        .complexities(complexity)
-        .thresholds(thresholds)
-        .enable_write()
-        .output_format(cargo_args.args.output_format)
-        .include(cargo_args.args.include)
-        .exclude(cargo_args.args.exclude)
-        .run(source_path, cargo_args.args.output_path)?;
+    run_complex_code_spotter(cargo_args.args, source_path);
 
     Ok(())
 }
