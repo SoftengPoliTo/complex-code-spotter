@@ -70,15 +70,9 @@ impl OutputFormat {
         &["json", "markdown", "html", "all"]
     }
 
-    pub(crate) fn write_format<P: AsRef<Path>>(
-        &self,
-        output_path: P,
-        snippets: &[Snippets],
-    ) -> Result<()> {
+    pub(crate) fn write_format(&self, output_path: &Path, snippets: &[Snippets]) -> Result<()> {
         // Create output filenames.
         let filenames = create_filenames(snippets);
-
-        let output_path = output_path.as_ref();
 
         match self {
             Self::All => {
