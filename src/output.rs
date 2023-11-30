@@ -75,25 +75,32 @@ impl OutputFormat {
         &["json", "markdown", "html", "all"]
     }
 
-    pub(crate) fn write_output(&self, output_path: PathBuf, snippets: &[Snippets]) -> Result<()> {
+    pub(crate) fn write_output<P: AsRef<Path>>(
+        &self,
+        output_path: P,
+        snippets: &[Snippets],
+    ) -> Result<()> {
+        // Get path
+        let output_path = output_path.as_ref();
+
         // Create output filenames.
         let filenames = create_filenames(snippets);
 
         match self {
             Self::All => {
                 let environment = more_templates_environment()?;
-                Markdown::write_template(&output_path, &filenames, snippets, &environment)?;
-                Html::write_format(&output_path, &filenames, snippets)?;
-                Json::write_format(&output_path, &filenames, snippets)
+                Markdown::write_template(output_path, &filenames, snippets, &environment)?;
+                Html::write_format(output_path, &filenames, snippets)?;
+                Json::write_format(output_path, &filenames, snippets)
             }
-            Self::Json => Json::write_format(&output_path, &filenames, snippets),
+            Self::Json => Json::write_format(output_path, &filenames, snippets),
             Self::Markdown => Markdown::write_template(
-                &output_path,
+                output_path,
                 &filenames,
                 snippets,
                 &single_template_environment(Markdown::TEMPLATE)?,
             ),
-            Self::Html => Html::write_format(&output_path, &filenames, snippets),
+            Self::Html => Html::write_format(output_path, &filenames, snippets),
         }
     }
 }

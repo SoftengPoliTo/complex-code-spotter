@@ -21,12 +21,13 @@ pub use output::OutputFormat;
 pub use snippets::Snippets;
 
 use std::borrow::Cow;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread::available_parallelism;
 
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use rust_code_analysis::{get_function_spaces, guess_language, read_file_with_eol};
+use tracing::info;
 
 use concurrent::{ConcurrentRunner, FilesData};
 use error::{Error, Result};
@@ -104,9 +105,13 @@ impl SnippetsProducer {
     }
 
     /// Runs the complex code snippets producer.
-    pub fn run(self, source_path: PathBuf, output_path: PathBuf) -> Result<Option<Vec<Snippets>>> {
+    pub fn run<P: AsRef<Path>, K: AsRef<Path>>(
+        self,
+        source_path: P,
+        output_path: K,
+    ) -> Result<Option<Vec<Snippets>>> {
         // Check if output path is a file.
-        if output_path.is_file() {
+        if output_path.as_ref().is_file() {
             return Err(Error::FormatPath("Output path MUST be a directory"));
         }
 
@@ -127,7 +132,7 @@ impl SnippetsProducer {
         let files_data = FilesData {
             include: Self::mk_globset(self.0.include),
             exclude: Self::mk_globset(self.0.exclude),
-            path: source_path,
+            path: source_path.as_ref().to_path_buf(),
         };
 
         // Extracts snippets concurrently.
@@ -141,7 +146,7 @@ impl SnippetsProducer {
         // If there are no snippets, print a message informing that the code is
         // clean.
         if snippets_context.is_empty() {
-            println!("Congratulations! Your code is clean, it does not have any complexity!");
+            info!("Congratulations! Your code is clean, it does not have any complexity!");
             return Ok(None);
         }
 
