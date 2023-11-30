@@ -107,13 +107,9 @@ impl SnippetsProducer {
     }
 
     /// Runs the complex code snippets producer.
-    pub fn run<P: AsRef<Path>>(
-        self,
-        source_path: P,
-        output_path: P,
-    ) -> Result<Option<Vec<Snippets>>> {
+    pub fn run(self, source_path: PathBuf, output_path: &Path) -> Result<Option<Vec<Snippets>>> {
         // Check if output path is a file.
-        if output_path.as_ref().is_file() {
+        if output_path.is_file() {
             return Err(Error::FormatPath(
                 "Output path MUST be a directory".to_string(),
             ));
@@ -136,7 +132,7 @@ impl SnippetsProducer {
         let files_data = FilesData {
             include: Self::mk_globset(self.0.include),
             exclude: Self::mk_globset(self.0.exclude),
-            path: source_path.as_ref().to_path_buf(),
+            path: source_path,
         };
 
         // Extracts snippets concurrently.
@@ -158,7 +154,7 @@ impl SnippetsProducer {
         if self.0.write {
             self.0
                 .output_format
-                .write_format(output_path, &snippets_context)?;
+                .write_format(&output_path, &snippets_context)?;
         }
 
         Ok(Some(snippets_context))
