@@ -20,6 +20,7 @@ pub use metrics::Complexity;
 pub use output::OutputFormat;
 pub use snippets::Snippets;
 
+use std::borrow::Cow;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread::available_parallelism;
@@ -110,9 +111,7 @@ impl SnippetsProducer {
     pub fn run(self, source_path: PathBuf, output_path: PathBuf) -> Result<Option<Vec<Snippets>>> {
         // Check if output path is a file.
         if output_path.is_file() {
-            return Err(Error::FormatPath(
-                "Output path MUST be a directory".to_string(),
-            ));
+            return Err(Error::FormatPath("Output path MUST be a directory"));
         }
 
         // Check that each complexity has an associated threshold.
@@ -140,7 +139,7 @@ impl SnippetsProducer {
 
         // Retrieve snippets.
         let snippets_context = Arc::try_unwrap(snippets_context)
-            .map_err(|_| Error::Mutability("Unable to get computed snippets".to_string()))?
+            .map_err(|_| Error::Mutability(Cow::from("Unable to get computed snippets")))?
             .into_inner()?;
 
         // If there are no snippets, print a message informing that the code is
@@ -154,7 +153,7 @@ impl SnippetsProducer {
         if self.0.write {
             self.0
                 .output_format
-                .write_format(&output_path, &snippets_context)?;
+                .write_output(output_path, &snippets_context)?;
         }
 
         Ok(Some(snippets_context))

@@ -75,25 +75,25 @@ impl OutputFormat {
         &["json", "markdown", "html", "all"]
     }
 
-    pub(crate) fn write_format(&self, output_path: &Path, snippets: &[Snippets]) -> Result<()> {
+    pub(crate) fn write_output(&self, output_path: PathBuf, snippets: &[Snippets]) -> Result<()> {
         // Create output filenames.
         let filenames = create_filenames(snippets);
 
         match self {
             Self::All => {
                 let environment = more_templates_environment()?;
-                Markdown::write_template(output_path, &filenames, snippets, &environment)?;
-                Html::write_format(output_path, &filenames, snippets)?;
-                Json::write_format(output_path, &filenames, snippets)
+                Markdown::write_template(&output_path, &filenames, snippets, &environment)?;
+                Html::write_format(&output_path, &filenames, snippets)?;
+                Json::write_format(&output_path, &filenames, snippets)
             }
-            Self::Json => Json::write_format(output_path, &filenames, snippets),
+            Self::Json => Json::write_format(&output_path, &filenames, snippets),
             Self::Markdown => Markdown::write_template(
-                output_path,
+                &output_path,
                 &filenames,
                 snippets,
                 &single_template_environment(Markdown::TEMPLATE)?,
             ),
-            Self::Html => Html::write_format(output_path, &filenames, snippets),
+            Self::Html => Html::write_format(&output_path, &filenames, snippets),
         }
     }
 }
@@ -231,15 +231,9 @@ impl WriteFormat for Html {
                 "<a href=\"{index_path}\" target=\"_blank\">{index_path}</a><br>",
                 index_path = final_path
                     .file_name()
-                    .ok_or_else(|| Error::FormatPath(format!(
-                        "Error getting filename for {:?}",
-                        final_path
-                    )))?
+                    .ok_or_else(|| Error::FormatPath("wip"))?
                     .to_str()
-                    .ok_or_else(|| Error::FormatPath(format!(
-                        "Error converting {:?} path to str",
-                        final_path
-                    )))?
+                    .ok_or_else(|| Error::FormatPath("wip"))?
             ));
 
             let title = path
