@@ -154,7 +154,6 @@ impl WriteFormat for Markdown {
                 "language",
                 Value::from_serializable(&snippet.language.name()),
             );
-            println!("{:?}", snippet.snippets);
             context.insert("snippets", Value::from_serializable(&snippet.snippets));
 
             // Fill template
