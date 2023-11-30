@@ -1,13 +1,15 @@
-# {{ complexity_name }}
-
 {% for snippet in snippets %}
-*complexity:* **{{ snippet.complexity }}**
+# {{ snippet.complexity_name }}
+    {% for snippet_data in snippet.snippets %}
+        *complexity:* **{{ snippet_data.complexity }}**
 
-*start line:* **{{ snippet.start_line }}**
+        *start line:* **{{ snippet_data.start_line }}**
 
-*end line:* **{{ snippet.end_line }}**
+        *end line:* **{{ snippet_data.end_line }}**
 
-```{{ language }}
-{{ snippet.text }}
-```
+        ```{{ language }}
+        {{ snippet_data.text }}
+        ```
+    {% endfor %}
 {% endfor %}
+

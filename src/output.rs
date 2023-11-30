@@ -154,17 +154,16 @@ impl WriteFormat for Markdown {
                 "language",
                 Value::from_serializable(&snippet.language.name()),
             );
-            for (complexity_name, all_snippets) in snippet.snippets.iter() {
-                context.insert("complexity_name", Value::from_serializable(complexity_name));
-                context.insert("snippets", Value::from_serializable(all_snippets));
-            }
+            println!("{:?}", snippet.snippets);
+            context.insert("snippets", Value::from_serializable(&snippet.snippets));
 
             // Fill template
             let filled_template = template.render(&context)?;
 
-            let final_path = dir.join(filename).with_extension(Self::EXTENSION);
-            debug!("Creating {:?}", final_path);
-            write(final_path, filled_template)?;
+            // Write filled template in a new file
+            create_file(dir.join(filename), Self::EXTENSION, |path| {
+                write(path, filled_template).map_err(|e| e.into())
+            })?;
         }
 
         Ok(())
