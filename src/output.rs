@@ -1,11 +1,10 @@
-use std::collections::HashMap;
 use std::fmt;
 use std::fs::{create_dir_all, write, File};
+use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use minijinja::value::Value;
-use minijinja::Environment;
+use minijinja::{context, Environment};
 
 use tracing::debug;
 
@@ -14,23 +13,20 @@ use crate::Snippets;
 
 // Builtin template macro to retrieve a template
 macro_rules! builtin_templates {
-    ($(($name:expr, $template:expr)),+) => {
+    ($($name:expr),+) => {
         [
         $(
             (
                 $name,
-                include_str!(concat!(env!("CARGO_MANIFEST_DIR"),"/templates/", $template)),
+                include_str!(concat!(env!("CARGO_MANIFEST_DIR"),"/templates/", $name)),
             )
         ),+
         ]
     }
 }
 
-static OUTPUT_TEMPLATES: &[(&str, &str)] = &builtin_templates![
-    ("md.markdown", "markdown.md"),
-    ("html.index", "index.html"),
-    ("html.web", "web.html")
-];
+static OUTPUT_TEMPLATES: &[(&str, &str)] =
+    &builtin_templates!["markdown.md", "index.html", "web.html"];
 
 /// Supported output formats.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -91,7 +87,8 @@ impl OutputFormat {
 
         match self {
             Self::All => {
-                let environment = produce_templates_environment(OUTPUT_TEMPLATES)?;
+                let environment =
+                    produce_templates_environment(RangeInclusive::new(0, OUTPUT_TEMPLATES.len()))?;
                 Markdown::write_template(output_path, &filenames, snippets, &environment)?;
                 Html::write_template(output_path, &filenames, snippets, &environment)?;
                 Json::write_format(output_path, &filenames, snippets)
@@ -149,11 +146,9 @@ where
 }
 
 #[inline(always)]
-fn produce_templates_environment(
-    templates: &'static [(&'static str, &'static str)],
-) -> Result<Environment<'static>> {
+fn produce_templates_environment(range: RangeInclusive<usize>) -> Result<Environment<'static>> {
     let mut environment = Environment::new();
-    for (template_name, template_file) in templates {
+    for (template_name, template_file) in OUTPUT_TEMPLATES[range].iter() {
         environment.add_template(template_name, template_file)?;
     }
     Ok(environment)
@@ -169,7 +164,7 @@ trait WriteFormat {
 trait WriteTemplate {
     const EXTENSION: &'static str;
     const DIR: &'static str;
-    const TEMPLATE: &'static [(&'static str, &'static str)];
+    const TEMPLATE: RangeInclusive<usize>;
 
     fn write_template(
         path: &Path,
@@ -184,7 +179,7 @@ struct Markdown;
 impl WriteTemplate for Markdown {
     const EXTENSION: &'static str = "md";
     const DIR: &'static str = "markdown";
-    const TEMPLATE: &'static [(&'static str, &'static str)] = &[("md.markdown", "markdown.md")];
+    const TEMPLATE: RangeInclusive<usize> = RangeInclusive::new(0, 0);
 
     fn write_template(
         path: &Path,
@@ -194,27 +189,19 @@ impl WriteTemplate for Markdown {
     ) -> Result<()> {
         let dir = create_dir(path, Self::DIR)?;
 
-        let template = environment.get_template(Self::TEMPLATE[0].0)?;
-
-        let mut context = HashMap::new();
+        let template = environment.get_template(OUTPUT_TEMPLATES[*Self::TEMPLATE.start()].0)?;
 
         for (filename, snippet) in filenames.iter().zip(snippets) {
-            context.insert(
-                "language",
-                Value::from_serializable(&snippet.language.name()),
-            );
-            context.insert("snippets", Value::from_serializable(&snippet.snippets));
-
             // Fill template
-            let filled_template = template.render(&context)?;
+            let filled_template = template.render(context! {
+                language => snippet.language.name(),
+                snippets => snippet.snippets
+            })?;
 
             // Write filled template in a new file
             create_file(dir.join(filename), Self::EXTENSION, |path| {
                 write(path, filled_template).map_err(|e| e.into())
             })?;
-
-            // Clear context
-            context.clear();
         }
 
         Ok(())
@@ -226,7 +213,7 @@ struct Html;
 fn index_template(
     filenames: &[String],
     dir: &Path,
-    template_data: (&str, &str),
+    template_name: &str,
     extension: &str,
     environment: &Environment,
 ) -> Result<()> {
@@ -242,25 +229,16 @@ fn index_template(
         .flatten()
         .collect::<Vec<String>>();
 
-    let mut context = HashMap::new();
-    context.insert("directory", Value::from_serializable(&dir));
-    context.insert("files", Value::from_serializable(&files));
-
-    println!("{:?}", context);
-
-    println!("{}", template_data.0);
-
-    let template = environment.get_template(template_data.0)?;
-
-    println!("{:?}", template);
+    let template = environment.get_template(template_name)?;
 
     // Fill template
-    let filled_template = template.render(&context)?;
-
-    println!("{:?}", filled_template);
+    let filled_template = template.render(context! {
+        directory => dir,
+        files => files
+    })?;
 
     // Write filled template in a new file
-    create_file(dir.join(template_data.1), extension, |path| {
+    create_file(dir.join(template_name), extension, |path| {
         write(path, filled_template).map_err(|e| e.into())
     })?;
 
@@ -270,8 +248,7 @@ fn index_template(
 impl WriteTemplate for Html {
     const EXTENSION: &'static str = "html";
     const DIR: &'static str = "html";
-    const TEMPLATE: &'static [(&'static str, &'static str)] =
-        &[("html.index", "index.html"), ("html.web", "web.html")];
+    const TEMPLATE: RangeInclusive<usize> = RangeInclusive::new(1, 2);
 
     fn write_template(
         path: &Path,
@@ -286,7 +263,7 @@ impl WriteTemplate for Html {
         index_template(
             filenames,
             &dir,
-            Self::TEMPLATE[0],
+            OUTPUT_TEMPLATES[*Self::TEMPLATE.start()].0,
             Self::EXTENSION,
             environment,
         )?;
