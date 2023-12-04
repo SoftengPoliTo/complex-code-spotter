@@ -27,7 +27,11 @@ macro_rules! builtin_templates {
     }
 }
 
-static OUTPUT_TEMPLATES: &[(&str, &str)] = &builtin_templates![("md.markdown", "markdown.md")];
+static OUTPUT_TEMPLATES: &[(&str, &str)] = &builtin_templates![
+    ("md.markdown", "markdown.md"),
+    ("html.index", "index.html"),
+    ("html.web", "web.html")
+];
 
 /// Supported output formats.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -88,9 +92,9 @@ impl OutputFormat {
 
         match self {
             Self::All => {
-                let environment = more_templates_environment()?;
+                let environment = produce_templates_environment(OUTPUT_TEMPLATES)?;
                 Markdown::write_template(output_path, &filenames, snippets, &environment)?;
-                Html::write_format(output_path, &filenames, snippets)?;
+                Html::write_template(output_path, &filenames, snippets, &environment)?;
                 Json::write_format(output_path, &filenames, snippets)
             }
             Self::Json => Json::write_format(output_path, &filenames, snippets),
@@ -98,9 +102,14 @@ impl OutputFormat {
                 output_path,
                 &filenames,
                 snippets,
-                &single_template_environment(Markdown::TEMPLATE)?,
+                &produce_templates_environment(Markdown::TEMPLATE)?,
             ),
-            Self::Html => Html::write_format(output_path, &filenames, snippets),
+            Self::Html => Html::write_template(
+                output_path,
+                &filenames,
+                snippets,
+                &produce_templates_environment(Html::TEMPLATE)?,
+            ),
         }
     }
 }
@@ -141,21 +150,13 @@ where
 }
 
 #[inline(always)]
-fn more_templates_environment() -> Result<Environment<'static>> {
-    let mut environment = Environment::new();
-    for (template_name, template_file) in OUTPUT_TEMPLATES {
-        environment.add_template(template_name, template_file)?;
-    }
-    Ok(environment)
-}
-
-#[inline(always)]
-fn single_template_environment(
-    template: (&'static str, &'static str),
+fn produce_templates_environment(
+    templates: &'static [(&'static str, &'static str)],
 ) -> Result<Environment<'static>> {
     let mut environment = Environment::new();
-    let (template_name, template_file) = template;
-    environment.add_template(template_name, template_file)?;
+    for (template_name, template_file) in templates {
+        environment.add_template(template_name, template_file)?;
+    }
     Ok(environment)
 }
 
@@ -169,7 +170,7 @@ trait WriteFormat {
 trait WriteTemplate {
     const EXTENSION: &'static str;
     const DIR: &'static str;
-    const TEMPLATE: (&'static str, &'static str);
+    const TEMPLATE: &'static [(&'static str, &'static str)];
 
     fn write_template(
         path: &Path,
@@ -184,7 +185,7 @@ struct Markdown;
 impl WriteTemplate for Markdown {
     const EXTENSION: &'static str = "md";
     const DIR: &'static str = "markdown";
-    const TEMPLATE: (&'static str, &'static str) = ("md.markdown", "markdown.md");
+    const TEMPLATE: &'static [(&'static str, &'static str)] = &[("md.markdown", "markdown.md")];
 
     fn write_template(
         path: &Path,
@@ -192,12 +193,13 @@ impl WriteTemplate for Markdown {
         snippets: &[Snippets],
         environment: &Environment,
     ) -> Result<()> {
-        let template = environment.get_template(Self::TEMPLATE.0)?;
-
         let dir = create_dir(path, Self::DIR)?;
 
+        let template = environment.get_template(Self::TEMPLATE[0].0)?;
+
+        let mut context = HashMap::new();
+
         for (filename, snippet) in filenames.iter().zip(snippets) {
-            let mut context = HashMap::new();
             context.insert(
                 "language",
                 Value::from_serializable(&snippet.language.name()),
@@ -211,6 +213,9 @@ impl WriteTemplate for Markdown {
             create_file(dir.join(filename), Self::EXTENSION, |path| {
                 write(path, filled_template).map_err(|e| e.into())
             })?;
+
+            // Clear context
+            context.clear();
         }
 
         Ok(())
@@ -219,91 +224,71 @@ impl WriteTemplate for Markdown {
 
 struct Html;
 
-impl WriteFormat for Html {
+fn index_template(
+    filenames: &[String],
+    dir: &Path,
+    template_data: (&str, &str),
+    extension: &str,
+    environment: &Environment,
+) -> Result<()> {
+    let files = filenames
+        .iter()
+        .map(|filename| {
+            if let Some(filename) = dir.join(filename).with_extension(extension).file_name() {
+                filename.to_str().map(|p| p.to_string())
+            } else {
+                None
+            }
+        })
+        .flatten()
+        .collect::<Vec<String>>();
+
+    let mut context = HashMap::new();
+    context.insert("files", Value::from_serializable(&files));
+
+    println!("{}", template_data.0);
+
+    let template = environment.get_template(template_data.0)?;
+
+    // Fill template
+    let filled_template = template.render(&context)?;
+
+    // Write filled template in a new file
+    create_file(dir.join(template_data.1), extension, |path| {
+        write(path, filled_template).map_err(|e| e.into())
+    })?;
+
+    Ok(())
+}
+
+impl WriteTemplate for Html {
     const EXTENSION: &'static str = "html";
     const DIR: &'static str = "html";
+    const TEMPLATE: &'static [(&'static str, &'static str)] =
+        &[("html.index", "index.html"), ("html.web", "web.html")];
 
-    fn write_format(path: &Path, filenames: &[String], snippets: &[Snippets]) -> Result<()> {
+    fn write_template(
+        path: &Path,
+        filenames: &[String],
+        snippets: &[Snippets],
+        environment: &Environment,
+    ) -> Result<()> {
+        // Create directory
         let dir = create_dir(path, Self::DIR)?;
 
-        let mut index_body = Vec::new();
-
-        for (filename, snippet) in filenames.iter().zip(snippets) {
-            let final_path = dir.join(filename).with_extension(Self::EXTENSION);
-            debug!("Creating {:?}", final_path);
-
-            let mut html_file = File::create(&final_path)?;
-
-            index_body.push(format!(
-                "<a href=\"{index_path}\" target=\"_blank\">{index_path}</a><br>",
-                index_path = final_path
-                    .file_name()
-                    .ok_or_else(|| Error::FormatPath("wip"))?
-                    .to_str()
-                    .ok_or_else(|| Error::FormatPath("wip"))?
-            ));
-
-            let title = path
-                .file_name()
-                .map_or("Unknown file", |os| os.to_str().unwrap_or("Unknown file"));
-            let body = snippet
-                .snippets
-                .iter()
-                .map(|(complexity_name, all_snippets)| {
-                    format!(
-                        r#"<h1>{complexity_name}</h1>{snippet}"#,
-                        snippet = all_snippets
-                            .iter()
-                            .map(|v| {
-                                format!(
-                                    r#"
-<p>
-    complexity: <b>{complexity}</b><br>
-    start line: <b>{start_line}</b><br>
-    end line: <b>{end_line}</b><br>
-    <pre><code>{text}
-    </code></pre>
-</p>"#,
-                                    complexity = v.complexity,
-                                    start_line = v.start_line,
-                                    end_line = v.end_line,
-                                    text = html_escape::encode_text(&v.text),
-                                )
-                            })
-                            .collect::<Vec<String>>()
-                            .join("\n\n")
-                    )
-                })
-                .collect::<Vec<String>>()
-                .join("\n\n");
-            writeln!(
-                html_file,
-                r#"<!DOCTYPE html>
-<html>
-<head>
-    <title>{title}</title>
-</head>
-<body>
-    {body}
-</body>
-</html>"#
-            )?;
-        }
-
-        let mut index_file = File::create(dir.join("index.html"))?;
-        writeln!(
-            index_file,
-            r#"<!DOCTYPE html>
-<html>
-<head>
-    <title>Index</title>
-</head>
-<body>
-    {index_body}
-</body>
-</html>"#,
-            index_body = index_body.join("\n")
+        // Create index
+        index_template(
+            filenames,
+            &dir,
+            Self::TEMPLATE[0],
+            Self::EXTENSION,
+            environment,
         )?;
+
+        /*for (filename, snippet) in filenames.iter().zip(snippets) {
+            println!();
+        }*/
+
         Ok(())
     }
 }

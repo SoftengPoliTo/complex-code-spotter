@@ -3,7 +3,7 @@
 {% for data in snippets[complexity] %}
 ## Snippet {{ loop.index }}
 
-*complexity:* **{{ data.complexity }}**
+*complexity value:* **{{ data.complexity }}**
 
 *start line:* **{{ data.start_line }}**
 

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+
+    <!-- START HEAD -->
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <title>Snippets</title>
+        <!-- Bulma Version 0.9.4-->
+        <link rel="stylesheet" href="https://unpkg.com/bulma@0.9.4/css/bulma.min.css" />
+        <!-- Import Font Awesome icons -->
+        <script defer src="https://use.fontawesome.com/releases/v5.3.1/js/all.js"></script>
+    </head>
+    <!-- END HEAD -->
+
+    <!-- START BODY -->
+    <body>
+        <!-- START NAVBAR -->
+        <nav class="navbar is-success" role="navigation" aria-label="main navigation">
+            <div class="navbar-brand">
+            {%- for complexity in snippets -%}
+            <a class="navbar-item" onclick="show('{{ complexity }}')">
+                {{ complexity }}
+            </a>
+            {%- endfor -%}
+            </div>
+        </nav>
+        <!-- END NAVBAR -->
+
+        <!-- START LINKS PANEL -->
+        <section class="hero is-fullheight">
+            <div class="hero-body">
+                <div class="container px-3">
+                    <div class="columns is-centered mb-5">
+                        <div class="column is-half">
+                            {%- for complexity in snippets -%}
+                            <div id="{{ complexity }}" {%- if loop.index > 1 -%}hidden{%- endif -%}>
+                                {%- for data in snippets[complexity] -%}
+                                <div class="card">
+                                    <header class="card-header has-background-success is-shadowless">
+                                        <p class="card-header-title is-centered mt-5">Snippet {{ loop.index }}</p>
+                                    </header>
+                                    <div class="card-content">
+                                        <div class="field is-centered has-text-centered">
+                                            <label class="label is-size-5-mobile mb-4">
+                                                Complexity value
+                                            </label>
+                                            <p class="control">
+                                              {{ data.complexity }}
+                                            </p>
+                                        </div>
+                                        <div class="field is-centered has-text-centered">
+                                            <label class="label is-size-5-mobile mb-4">
+                                                Start line
+                                            </label>
+                                            <p class="control">
+                                              {{ data.start_line }}
+                                            </p>
+                                        </div>
+                                        <div class="field is-centered has-text-centered">
+                                            <label class="label is-size-5-mobile mb-4">
+                                                End line
+                                            </label>
+                                            <p class="control">
+                                              {{ data.end_line }}
+                                            </p>
+                                        </div>
+                                        <div class="field is-centered has-text-centered">
+                                            <label class="label is-size-5-mobile mb-4">
+                                                Code
+                                            </label>
+                                            <p class="control">
+                                                <div class="content">
+                                                    <pre>{{ data.text }}</pre>
+                                                </div>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                {%- endfor -%}
+                            </div>
+                            {%- endfor -%}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- END LINKS PANEL -->
+    </body>
+    <!-- END BODY -->
+
+</html>
