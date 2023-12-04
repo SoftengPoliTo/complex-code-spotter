@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::fs::{create_dir_all, write, File};
-use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
@@ -10,8 +9,8 @@ use minijinja::Environment;
 
 use tracing::debug;
 
+use crate::Result;
 use crate::Snippets;
-use crate::{Error, Result};
 
 // Builtin template macro to retrieve a template
 macro_rules! builtin_templates {
@@ -234,7 +233,7 @@ fn index_template(
     let files = filenames
         .iter()
         .map(|filename| {
-            if let Some(filename) = dir.join(filename).with_extension(extension).file_name() {
+            if let Some(filename) = Path::new(filename).with_extension(extension).file_name() {
                 filename.to_str().map(|p| p.to_string())
             } else {
                 None
@@ -244,14 +243,21 @@ fn index_template(
         .collect::<Vec<String>>();
 
     let mut context = HashMap::new();
+    context.insert("directory", Value::from_serializable(&dir));
     context.insert("files", Value::from_serializable(&files));
+
+    println!("{:?}", context);
 
     println!("{}", template_data.0);
 
     let template = environment.get_template(template_data.0)?;
 
+    println!("{:?}", template);
+
     // Fill template
     let filled_template = template.render(&context)?;
+
+    println!("{:?}", filled_template);
 
     // Write filled template in a new file
     create_file(dir.join(template_data.1), extension, |path| {
