@@ -37,7 +37,7 @@ pre {
 
             <div id="menu" class="navbar-menu">
                 <div class="navbar-start">
-                    {%- for complexity in complexities -%}
+                    {%- for complexity, _ in snippets -%}
                     <a class="navbar-item" onclick="show('{{ complexity }}')">
                         {{ complexity }}
                     </a>
@@ -50,10 +50,11 @@ pre {
         <!-- START LINKS PANEL -->
         <section class="hero is-fullheight">
             <div class="hero-body">
-                <div class="container px-3">
-                    {% for complexity in snippets %}
+                <div id="data" class="container px-3">
+                    {% for complexity, snippet in snippets %}
                     <div id="{{ complexity }}" {% if loop.index > 1 %}hidden{% endif %}>
-                        {% for data in snippets[complexity] %}
+                        <h2 class="title is-2 has-text-centered mb-6">{{ complexity }}</h2>
+                        {% for data in snippet %}
                         <div class="columns is-centered mb-5">
                             <div class="column is-half">
                                 <div class="card">
@@ -141,6 +142,23 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
 });
+
+function show(metric) {
+  // Get main container
+  const mainContainer = document.getElementById("data");
+
+  // Iterate over children
+  const children = mainContainer.children;
+  for (child of children) {
+      // Remove hidden attribute to show metric
+      if(child.id == metric) {
+        child.removeAttribute("hidden");
+      } else {
+        // Hide attribute
+        child.setAttribute("hidden", "");
+      }
+  }
+}
 </script>
 
 </html>

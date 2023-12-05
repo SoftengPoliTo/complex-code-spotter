@@ -275,17 +275,16 @@ impl WriteTemplate for Html {
         let template = environment.get_template(OUTPUT_TEMPLATES[*Self::TEMPLATE.end()].0)?;
 
         for (filename, snippet) in filenames.iter().zip(snippets) {
-            // Retrieve complexities
-            let mut complexities = snippet.snippets.keys().collect::<Vec<&crate::Complexity>>();
-            // Sort complexities
-            complexities.sort_unstable();
+            let mut all_snippets = snippet
+                .snippets
+                .iter()
+                .collect::<Vec<(&crate::Complexity, &Vec<crate::snippets::SnippetData>)>>();
+
+            // Sort by complexities
+            all_snippets.sort_by(|a, b| a.0.cmp(&b.0));
 
             // Fill template
-            let filled_template = template.render(context! {
-                // Iterate over complexities
-                complexities => complexities,
-                snippets => snippet.snippets
-            })?;
+            let filled_template = template.render(context! { snippets => all_snippets })?;
 
             // Write filled template in a new file
             create_file(dir.join(filename), Self::EXTENSION, |path| {
