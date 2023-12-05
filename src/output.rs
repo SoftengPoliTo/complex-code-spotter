@@ -219,14 +219,13 @@ fn index_template(
 ) -> Result<()> {
     let mut files = filenames
         .iter()
-        .map(|filename| {
+        .filter_map(|filename| {
             if let Some(filename) = Path::new(filename).with_extension(extension).file_name() {
                 filename.to_str().map(|p| p.to_string())
             } else {
                 None
             }
         })
-        .flatten()
         .collect::<Vec<String>>();
 
     // Sort filenames
@@ -281,7 +280,7 @@ impl WriteTemplate for Html {
                 .collect::<Vec<(&crate::Complexity, &Vec<crate::snippets::SnippetData>)>>();
 
             // Sort by complexities
-            all_snippets.sort_by(|a, b| a.0.cmp(&b.0));
+            all_snippets.sort_by(|a, b| a.0.cmp(b.0));
 
             // Fill template
             let filled_template = template.render(context! { snippets => all_snippets })?;
