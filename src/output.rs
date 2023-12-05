@@ -217,7 +217,7 @@ fn index_template(
     extension: &str,
     environment: &Environment,
 ) -> Result<()> {
-    let files = filenames
+    let mut files = filenames
         .iter()
         .map(|filename| {
             if let Some(filename) = Path::new(filename).with_extension(extension).file_name() {
@@ -228,6 +228,9 @@ fn index_template(
         })
         .flatten()
         .collect::<Vec<String>>();
+
+    // Sort filenames
+    files.sort_unstable();
 
     let template = environment.get_template(template_name)?;
 
@@ -268,9 +271,27 @@ impl WriteTemplate for Html {
             environment,
         )?;
 
-        /*for (filename, snippet) in filenames.iter().zip(snippets) {
-            println!();
-        }*/
+        // Retrieve template
+        let template = environment.get_template(OUTPUT_TEMPLATES[*Self::TEMPLATE.end()].0)?;
+
+        for (filename, snippet) in filenames.iter().zip(snippets) {
+            // Retrieve complexities
+            let mut complexities = snippet.snippets.keys().collect::<Vec<&crate::Complexity>>();
+            // Sort complexities
+            complexities.sort_unstable();
+
+            // Fill template
+            let filled_template = template.render(context! {
+                // Iterate over complexities
+                complexities => complexities,
+                snippets => snippet.snippets
+            })?;
+
+            // Write filled template in a new file
+            create_file(dir.join(filename), Self::EXTENSION, |path| {
+                write(path, filled_template).map_err(|e| e.into())
+            })?;
+        }
 
         Ok(())
     }
