@@ -28,11 +28,21 @@ pre {
         <!-- START NAVBAR -->
         <nav class="navbar is-success" role="navigation" aria-label="main navigation">
             <div class="navbar-brand">
-            {%- for complexity in complexities -%}
-            <a class="navbar-item" onclick="show('{{ complexity }}')">
-                {{ complexity }}
-            </a>
-            {%- endfor -%}
+                <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarBasicExample">
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                </a>
+            </div>
+
+            <div id="menu" class="navbar-menu">
+                <div class="navbar-start">
+                    {%- for complexity in complexities -%}
+                    <a class="navbar-item" onclick="show('{{ complexity }}')">
+                        {{ complexity }}
+                    </a>
+                    {%- endfor -%}
+                </div>
             </div>
         </nav>
         <!-- END NAVBAR -->
@@ -80,9 +90,9 @@ pre {
                                                 Code
                                             </label>
                                             <div class="control">
-                                                    <pre>
+                                                <pre class="block">
 {{ data.text }}
-                                                    </pre>
+                                                </pre>
                                             </div>
                                         </div>
                                     </div>
@@ -108,6 +118,29 @@ for (var i=0; i < size; i++) {
 }
 
 hljs.highlightAll(); // apply highlighting
+
+
+document.addEventListener('DOMContentLoaded', () => {
+
+  // Get all "navbar-burger" elements
+  const $navbarBurgers = Array.prototype.slice.call(document.querySelectorAll('.navbar-burger'), 0);
+
+  // Add a click event on each of them
+  $navbarBurgers.forEach( el => {
+    el.addEventListener('click', () => {
+
+      // Get the target from the "data-target" attribute
+      const target = el.dataset.target;
+      const $target = document.getElementById(target);
+
+      // Toggle the "is-active" class on both the "navbar-burger" and the "navbar-menu"
+      el.classList.toggle('is-active');
+      $target.classList.toggle('is-active');
+
+    });
+  });
+
+});
 </script>
 
 </html>
