@@ -4,8 +4,8 @@ use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use minijinja::{context, Environment};
-
+use minijinja::{context, Environment, Template};
+use serde::Serialize;
 use tracing::debug;
 
 use crate::Result;
@@ -146,7 +146,7 @@ where
 }
 
 #[inline(always)]
-fn produce_templates_environment(range: RangeInclusive<usize>) -> Result<Environment<'static>> {
+fn produce_templates_environment<'a>(range: RangeInclusive<usize>) -> Result<Environment<'a>> {
     let mut environment = Environment::new();
     for (template_name, template_file) in OUTPUT_TEMPLATES[range].iter() {
         environment.add_template(template_name, template_file)?;
@@ -161,7 +161,7 @@ trait WriteFormat {
     fn write_format(path: &Path, filenames: &[String], snippets: &[Snippets]) -> Result<()>;
 }
 
-trait WriteTemplate {
+trait WriteTemplate<'a> {
     const EXTENSION: &'static str;
     const DIR: &'static str;
     const TEMPLATE: RangeInclusive<usize>;
@@ -170,13 +170,29 @@ trait WriteTemplate {
         path: &Path,
         filenames: &[String],
         snippets: &[Snippets],
-        environment: &Environment,
+        environment: &'a Environment,
     ) -> Result<()>;
+
+    fn save_template<S: Serialize>(
+        dir: PathBuf,
+        template: &Template<'a, 'a>,
+        context: S,
+    ) -> Result<()> {
+        // Fill template
+        let filled_template = template.render(context)?;
+
+        // Write filled template in a new file
+        create_file(dir, Self::EXTENSION, |path| {
+            write(path, filled_template).map_err(|e| e.into())
+        })?;
+
+        Ok(())
+    }
 }
 
 struct Markdown;
 
-impl WriteTemplate for Markdown {
+impl<'a> WriteTemplate<'a> for Markdown {
     const EXTENSION: &'static str = "md";
     const DIR: &'static str = "markdown";
     const TEMPLATE: RangeInclusive<usize> = RangeInclusive::new(0, 0);
@@ -185,23 +201,21 @@ impl WriteTemplate for Markdown {
         path: &Path,
         filenames: &[String],
         snippets: &[Snippets],
-        environment: &Environment,
+        environment: &'a Environment,
     ) -> Result<()> {
         let dir = create_dir(path, Self::DIR)?;
 
         let template = environment.get_template(OUTPUT_TEMPLATES[*Self::TEMPLATE.start()].0)?;
 
         for (filename, snippet) in filenames.iter().zip(snippets) {
-            // Fill template
-            let filled_template = template.render(context! {
-                language => snippet.language.name(),
-                snippets => snippet.snippets
-            })?;
-
-            // Write filled template in a new file
-            create_file(dir.join(filename), Self::EXTENSION, |path| {
-                write(path, filled_template).map_err(|e| e.into())
-            })?;
+            Self::save_template(
+                dir.join(filename),
+                &template,
+                context! {
+                    language => snippet.language.name(),
+                    snippets => snippet.snippets
+                },
+            )?;
         }
 
         Ok(())
@@ -210,12 +224,12 @@ impl WriteTemplate for Markdown {
 
 struct Html;
 
-fn index_template(
+fn index_template<'a, T: WriteTemplate<'a>>(
     filenames: &[String],
     dir: &Path,
     template_name: &str,
     extension: &str,
-    environment: &Environment,
+    environment: &'a Environment,
 ) -> Result<()> {
     let mut files = filenames
         .iter()
@@ -233,21 +247,19 @@ fn index_template(
 
     let template = environment.get_template(template_name)?;
 
-    // Fill template
-    let filled_template = template.render(context! {
-        directory => dir,
-        files => files
-    })?;
-
-    // Write filled template in a new file
-    create_file(dir.join(template_name), extension, |path| {
-        write(path, filled_template).map_err(|e| e.into())
-    })?;
+    T::save_template(
+        dir.join(template_name),
+        &template,
+        context! {
+            directory => dir,
+            files => files
+        },
+    )?;
 
     Ok(())
 }
 
-impl WriteTemplate for Html {
+impl<'a> WriteTemplate<'a> for Html {
     const EXTENSION: &'static str = "html";
     const DIR: &'static str = "html";
     const TEMPLATE: RangeInclusive<usize> = RangeInclusive::new(1, 2);
@@ -256,13 +268,13 @@ impl WriteTemplate for Html {
         path: &Path,
         filenames: &[String],
         snippets: &[Snippets],
-        environment: &Environment,
+        environment: &'a Environment,
     ) -> Result<()> {
         // Create directory
         let dir = create_dir(path, Self::DIR)?;
 
         // Create index
-        index_template(
+        index_template::<Self>(
             filenames,
             &dir,
             OUTPUT_TEMPLATES[*Self::TEMPLATE.start()].0,
@@ -282,13 +294,11 @@ impl WriteTemplate for Html {
             // Sort by complexities
             all_snippets.sort_by(|a, b| a.0.cmp(b.0));
 
-            // Fill template
-            let filled_template = template.render(context! { snippets => all_snippets })?;
-
-            // Write filled template in a new file
-            create_file(dir.join(filename), Self::EXTENSION, |path| {
-                write(path, filled_template).map_err(|e| e.into())
-            })?;
+            Self::save_template(
+                dir.join(filename),
+                &template,
+                context! { snippets => all_snippets },
+            )?;
         }
 
         Ok(())
