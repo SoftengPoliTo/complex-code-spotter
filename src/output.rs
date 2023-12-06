@@ -250,10 +250,7 @@ fn index_template<'a, T: WriteTemplate<'a>>(
     T::save_template(
         dir.join(template_name),
         &template,
-        context! {
-            directory => dir,
-            files => files
-        },
+        context! { files => files },
     )?;
 
     Ok(())
