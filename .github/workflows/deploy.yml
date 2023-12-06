@@ -12,14 +12,12 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Install stable
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@stable
       with:
-        profile: minimal
         toolchain: stable
-        override: true
 
     - name: Build complex-code-spotter
       run: |
@@ -29,8 +27,8 @@ jobs:
       shell: bash
       id: tagName
       run: |
-        VERSION=$(cargo pkgid | cut -d# -f2 | cut -d: -f2)
-        echo "::set-output name=tag::$VERSION"
+        VERSION=$(cargo pkgid | cut -d# -f2)
+        echo "tag=$VERSION" >> $GITHUB_OUTPUT
 
     - name: Build package
       id: package
@@ -40,11 +38,11 @@ jobs:
         ARCHIVE_NAME="complex-code-spotter-${{ steps.tagName.outputs.tag }}-$ARCHIVE_TARGET"
         ARCHIVE_FILE="${ARCHIVE_NAME}.zip"
         7z a ${ARCHIVE_FILE} ./target/release/complex-code-spotter.exe
-        echo "::set-output name=file::${ARCHIVE_FILE}"
-        echo "::set-output name=name::${ARCHIVE_NAME}.zip"
+        echo "file=$ARCHIVE_FILE" >> $GITHUB_OUTPUT
+        echo "name=$ARCHIVE_NAME.zip" >> $GITHUB_OUTPUT
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: ${{ steps.package.outputs.name }}
         path: ${{ steps.package.outputs.file }}
@@ -63,15 +61,13 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
-    - name: Install Rust
-      uses: actions-rs/toolchain@v1
+    - name: Install Rust stable
+      uses: dtolnay/rust-toolchain@stable
       with:
-        profile: minimal
         toolchain: stable
         target: ${{ matrix.target }}
-        override: true
 
     - name: Install musl
       if: contains(matrix.target, 'linux-musl')
@@ -91,8 +87,8 @@ jobs:
     - name: Get the version
       id: tagName
       run: |
-        VERSION=$(cargo pkgid | cut -d# -f2 | cut -d: -f2)
-        echo "::set-output name=tag::$VERSION"
+        VERSION=$(cargo pkgid | cut -d# -f2)
+        echo "tag=$VERSION" >> $GITHUB_OUTPUT
 
     - name: Build package
       id: package
@@ -100,11 +96,11 @@ jobs:
         TAR_FILE=complex-code-spotter-${{ steps.tagName.outputs.tag }}-${{ matrix.target }}
         cd target/${{ matrix.target }}/release
         tar -czvf $GITHUB_WORKSPACE/$TAR_FILE.tar.gz complex-code-spotter
-        echo ::set-output "name=name::${TAR_FILE}"
-        echo ::set-output "name=file::${TAR_FILE}.tar.gz "
+        echo "name=$TAR_FILE" >> $GITHUB_OUTPUT
+        echo "file=$TAR_FILE.tar.gz" >> $GITHUB_OUTPUT
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: ${{ steps.package.outputs.name }}
         path: ${{ steps.package.outputs.file }}
@@ -117,14 +113,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install Rust stable
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
           toolchain: stable
-          override: true
 
       - name: Create Cargo.lock
         run: |
@@ -133,8 +127,8 @@ jobs:
       - name: Get version
         id: tagName
         run: |
-          VERSION=$(cargo pkgid | cut -d# -f2 | cut -d: -f2)
-          echo "::set-output name=tag::$VERSION"
+          VERSION=$(cargo pkgid | cut -d# -f2)
+          echo "tag=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Download artifacts
         uses: actions/download-artifact@v2
