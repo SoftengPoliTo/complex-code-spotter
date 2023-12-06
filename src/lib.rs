@@ -123,12 +123,16 @@ impl SnippetsProducer {
         // Create container for snippets.
         let snippets_context = Arc::new(Mutex::new(Vec::new()));
 
+        // Retrieve the number of available threads
         let num_jobs = available_parallelism()?.get();
+        // Define the configuration data
         let cfg = SnippetsConfig {
             complexities: self.0.complexities,
             thresholds: self.0.thresholds,
             snippets: snippets_context.clone(),
         };
+
+        // Define how to treat files
         let files_data = FilesData {
             include: Self::mk_globset(self.0.include),
             exclude: Self::mk_globset(self.0.exclude),
@@ -337,7 +341,7 @@ mod test {
         )
         .metrics(
             vec![Complexity::Cyclomatic, Complexity::Cognitive],
-            vec![8, 8],
+            vec![1, 1],
         );
 
         run_comparator(cfg);
