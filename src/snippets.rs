@@ -125,7 +125,7 @@ fn save_snippets(
 }
 
 fn obtain_snippets_single_space(
-    space: &FuncSpace,
+    space: FuncSpace,
     source_file: &str,
     complexity_thresholds: Vec<(Complexity, usize)>,
     snippets: &mut HashMap<Complexity, Vec<SnippetData>>,
@@ -133,7 +133,7 @@ fn obtain_snippets_single_space(
     complexity_thresholds
         .iter()
         .for_each(|(complexity, threshold)| {
-            if let Some(complexity_value) = complexity.value(space, *threshold) {
+            if let Some(complexity_value) = complexity.value(&space, *threshold) {
                 save_snippets(
                     *complexity,
                     complexity_value,
@@ -187,22 +187,17 @@ fn obtain_snippets(
 }
 
 pub(crate) fn get_code_snippets(
-    space: &FuncSpace,
+    space: FuncSpace,
     language: Language,
     source_path: PathBuf,
     source_file: &str,
-    complexities: &[Complexity],
-    thresholds: &[usize],
+    complexities: &[(Complexity, usize)],
 ) -> Option<Snippets> {
     // Delete complexity metrics which are below a specified threshold.
     let complexity_thresholds = complexities
         .iter()
-        .zip(thresholds)
-        .filter_map(|(complexity, threshold)| {
-            complexity
-                .value(space, *threshold)
-                .map(|_| (*complexity, *threshold))
-        })
+        .filter(|(complexity, threshold)| complexity.value(&space, *threshold).is_some())
+        .map(|(complexity, threshold)| (*complexity, *threshold))
         .collect::<Vec<(Complexity, usize)>>();
 
     // Do not extract snippets when the code has lower complexities values.

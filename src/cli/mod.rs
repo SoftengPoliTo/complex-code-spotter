@@ -65,9 +65,6 @@ pub(crate) struct Args {
 }
 
 pub(crate) fn run_complex_code_spotter(args: Args) {
-    let complexity = args.complexities.iter().map(|v| v.0).collect();
-    let thresholds = args.complexities.iter().map(|v| v.1).collect();
-
     // Enable filter to log the information contained in the lib.
     let filter_layer = EnvFilter::try_from_default_env()
         .or_else(|_| {
@@ -87,8 +84,7 @@ pub(crate) fn run_complex_code_spotter(args: Args) {
         .init();
 
     SnippetsProducer::new()
-        .complexities(complexity)
-        .thresholds(thresholds)
+        .complexities(args.complexities)
         .enable_write()
         .output_format(args.output_format)
         .include(args.include)

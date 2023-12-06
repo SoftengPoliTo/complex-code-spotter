@@ -6,13 +6,13 @@ use rust_code_analysis::FuncSpace;
 use serde::Serialize;
 
 trait ComplexityChecker {
-    fn check(space: &FuncSpace, threshold: usize) -> Option<usize>;
+    fn value(space: &FuncSpace, threshold: usize) -> Option<usize>;
 }
 
 struct Cyclomatic;
 
 impl ComplexityChecker for Cyclomatic {
-    fn check(space: &FuncSpace, threshold: usize) -> Option<usize> {
+    fn value(space: &FuncSpace, threshold: usize) -> Option<usize> {
         let value = space.metrics.cyclomatic.cyclomatic() as usize;
         (value > threshold || space.metrics.cyclomatic.cyclomatic_max() as usize > threshold)
             .then_some(value)
@@ -22,7 +22,7 @@ impl ComplexityChecker for Cyclomatic {
 struct Cognitive;
 
 impl ComplexityChecker for Cognitive {
-    fn check(space: &FuncSpace, threshold: usize) -> Option<usize> {
+    fn value(space: &FuncSpace, threshold: usize) -> Option<usize> {
         let value = space.metrics.cognitive.cognitive() as usize;
         (value > threshold || space.metrics.cognitive.cognitive_max() as usize > threshold)
             .then_some(value)
@@ -79,8 +79,8 @@ impl Complexity {
 
     pub(crate) fn value(&self, space: &FuncSpace, threshold: usize) -> Option<usize> {
         match self {
-            Self::Cyclomatic => Cyclomatic::check(space, threshold),
-            Self::Cognitive => Cognitive::check(space, threshold),
+            Self::Cyclomatic => Cyclomatic::value(space, threshold),
+            Self::Cognitive => Cognitive::value(space, threshold),
         }
     }
 }

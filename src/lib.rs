@@ -40,8 +40,7 @@ struct Parameters {
     write: bool,
     include: Vec<String>,
     exclude: Vec<String>,
-    complexities: Vec<Complexity>,
-    thresholds: Vec<usize>,
+    complexities: Vec<(Complexity, usize)>,
 }
 
 /// Produce snippets of complex code for a source file.
@@ -63,7 +62,7 @@ impl SnippetsProducer {
     /// Creates a new `SnippetsProducer` instance.
     pub fn new() -> Self {
         Self(Parameters {
-            thresholds: vec![15],
+            complexities: vec![(Complexity::Cyclomatic, 15)],
             ..Default::default()
         })
     }
@@ -81,14 +80,8 @@ impl SnippetsProducer {
     }
 
     /// Sets all complexities metric that will be computed.
-    pub fn complexities(mut self, complexities: Vec<Complexity>) -> Self {
+    pub fn complexities(mut self, complexities: Vec<(Complexity, usize)>) -> Self {
         self.0.complexities = complexities;
-        self
-    }
-
-    /// Sets the respective thresholds associated to each complexity metric.
-    pub fn thresholds(mut self, thresholds: Vec<usize>) -> Self {
-        self.0.thresholds = thresholds.into_iter().map(|v| v.min(100)).collect();
         self
     }
 
@@ -115,11 +108,6 @@ impl SnippetsProducer {
             return Err(Error::FormatPath("Output path MUST be a directory"));
         }
 
-        // Check that each complexity has an associated threshold.
-        if self.0.complexities.len() != self.0.thresholds.len() {
-            return Err(Error::Thresholds);
-        }
-
         // Create container for snippets.
         let snippets_context = Arc::new(Mutex::new(Vec::new()));
 
@@ -128,7 +116,6 @@ impl SnippetsProducer {
         // Define the configuration data
         let cfg = SnippetsConfig {
             complexities: self.0.complexities,
-            thresholds: self.0.thresholds,
             snippets: snippets_context.clone(),
         };
 
@@ -180,8 +167,7 @@ impl SnippetsProducer {
 
 #[derive(Debug)]
 struct SnippetsConfig {
-    complexities: Vec<Complexity>,
-    thresholds: Vec<usize>,
+    complexities: Vec<(Complexity, usize)>,
     snippets: Arc<Mutex<Vec<Snippets>>>,
 }
 
@@ -213,12 +199,11 @@ fn extract_file_snippets(source_path: PathBuf, cfg: &SnippetsConfig) -> Result<(
 
     // Get code snippets for each metric
     let snippets = get_code_snippets(
-        &spaces,
+        spaces,
         language.into(),
         source_path,
         source_file.as_ref(),
         &cfg.complexities,
-        &cfg.thresholds,
     );
 
     // If there are snippets, output file/files in the chosen format.
@@ -244,8 +229,7 @@ mod test {
         source_path: &'a Path,
         output_path: &'a Path,
         compare_path: &'a Path,
-        complexities: Vec<Complexity>,
-        thresholds: Vec<usize>,
+        complexities: Vec<(Complexity, usize)>,
     }
 
     impl<'a> Config<'a> {
@@ -255,13 +239,11 @@ mod test {
                 output_path,
                 compare_path,
                 complexities: Vec::new(),
-                thresholds: Vec::new(),
             }
         }
 
-        fn metrics(mut self, complexities: Vec<Complexity>, thresholds: Vec<usize>) -> Self {
+        fn metrics(mut self, complexities: Vec<(Complexity, usize)>) -> Self {
             self.complexities = complexities;
-            self.thresholds = thresholds;
             self
         }
     }
@@ -282,7 +264,6 @@ mod test {
         // Produce snippets.
         SnippetsProducer::new()
             .complexities(cfg.complexities)
-            .thresholds(cfg.thresholds)
             .output_format(OutputFormat::Json)
             .run(cfg.source_path, cfg.output_path)
             .unwrap();
@@ -323,10 +304,10 @@ mod test {
             Path::new("data/seahorse/output_high"),
             Path::new("data/seahorse/compare_high"),
         )
-        .metrics(
-            vec![Complexity::Cyclomatic, Complexity::Cognitive],
-            vec![15, 15],
-        );
+        .metrics(vec![
+            (Complexity::Cyclomatic, 15),
+            (Complexity::Cognitive, 15),
+        ]);
 
         // Run comparator.
         run_comparator(cfg);
@@ -339,10 +320,10 @@ mod test {
             Path::new("data/seahorse/output_low"),
             Path::new("data/seahorse/compare_low"),
         )
-        .metrics(
-            vec![Complexity::Cyclomatic, Complexity::Cognitive],
-            vec![1, 1],
-        );
+        .metrics(vec![
+            (Complexity::Cyclomatic, 1),
+            (Complexity::Cognitive, 1),
+        ]);
 
         run_comparator(cfg);
     }
