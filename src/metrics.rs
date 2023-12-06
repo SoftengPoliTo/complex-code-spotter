@@ -7,25 +7,36 @@ use serde::Serialize;
 
 trait ComplexityChecker {
     fn value(space: &FuncSpace, threshold: usize) -> Option<usize>;
+
+    #[inline(always)]
+    fn compute(metric_value: usize, metric_max_value: usize, threshold: usize) -> Option<usize> {
+        (metric_value > threshold || metric_max_value > threshold).then_some(metric_value)
+    }
 }
 
 struct Cyclomatic;
 
 impl ComplexityChecker for Cyclomatic {
+    #[inline(always)]
     fn value(space: &FuncSpace, threshold: usize) -> Option<usize> {
-        let value = space.metrics.cyclomatic.cyclomatic() as usize;
-        (value > threshold || space.metrics.cyclomatic.cyclomatic_max() as usize > threshold)
-            .then_some(value)
+        Self::compute(
+            space.metrics.cyclomatic.cyclomatic() as usize,
+            space.metrics.cyclomatic.cyclomatic_max() as usize,
+            threshold,
+        )
     }
 }
 
 struct Cognitive;
 
 impl ComplexityChecker for Cognitive {
+    #[inline(always)]
     fn value(space: &FuncSpace, threshold: usize) -> Option<usize> {
-        let value = space.metrics.cognitive.cognitive() as usize;
-        (value > threshold || space.metrics.cognitive.cognitive_max() as usize > threshold)
-            .then_some(value)
+        Self::compute(
+            space.metrics.cognitive.cognitive() as usize,
+            space.metrics.cognitive.cognitive_max() as usize,
+            threshold,
+        )
     }
 }
 
