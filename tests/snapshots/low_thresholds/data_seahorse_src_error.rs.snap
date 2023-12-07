@@ -1,0 +1,25 @@
+---
+source: tests/mod.rs
+expression: snippet
+---
+source_path: data/seahorse/src/error.rs
+language: Rust
+snippets:
+  Cyclomatic:
+    - complexity: 2
+      start_line: 13
+      end_line: 23
+      text: "impl fmt::Display for FlagError {\n    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {\n        match *self {\n            FlagError::NotFound => f.write_str(\"NotFound\"),\n            FlagError::Undefined => f.write_str(\"Undefined\"),\n            FlagError::TypeError => f.write_str(\"TypeError\"),\n            FlagError::ValueTypeError => f.write_str(\"ValueTypeError\"),\n            FlagError::ArgumentError => f.write_str(\"ArgumentError\"),\n        }\n    }\n}"
+    - complexity: 6
+      start_line: 14
+      end_line: 22
+      text: "    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {\n        match *self {\n            FlagError::NotFound => f.write_str(\"NotFound\"),\n            FlagError::Undefined => f.write_str(\"Undefined\"),\n            FlagError::TypeError => f.write_str(\"TypeError\"),\n            FlagError::ValueTypeError => f.write_str(\"ValueTypeError\"),\n            FlagError::ArgumentError => f.write_str(\"ArgumentError\"),\n        }\n    }"
+    - complexity: 2
+      start_line: 25
+      end_line: 35
+      text: "impl error::Error for FlagError {\n    fn description(&self) -> &str {\n        match *self {\n            FlagError::NotFound => \"Flag not found\",\n            FlagError::Undefined => \"Flag undefined\",\n            FlagError::TypeError => \"Flag type mismatch\",\n            FlagError::ValueTypeError => \"Value type mismatch\",\n            FlagError::ArgumentError => \"Illegal argument\",\n        }\n    }\n}"
+    - complexity: 6
+      start_line: 26
+      end_line: 34
+      text: "    fn description(&self) -> &str {\n        match *self {\n            FlagError::NotFound => \"Flag not found\",\n            FlagError::Undefined => \"Flag undefined\",\n            FlagError::TypeError => \"Flag type mismatch\",\n            FlagError::ValueTypeError => \"Value type mismatch\",\n            FlagError::ArgumentError => \"Illegal argument\",\n        }\n    }"
+

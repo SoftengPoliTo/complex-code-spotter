@@ -1,0 +1,106 @@
+---
+source: tests/mod.rs
+expression: snippet
+---
+source_path: data/seahorse/src/command.rs
+language: Rust
+snippets:
+  Cyclomatic:
+    - complexity: 2
+      start_line: 95
+      end_line: 102
+      text: "    pub fn flag(mut self, flag: Flag) -> Self {\n        if let Some(ref mut flags) = self.flags {\n            (*flags).push(flag);\n        } else {\n            self.flags = Some(vec![flag]);\n        }\n        self\n    }"
+    - complexity: 2
+      start_line: 114
+      end_line: 121
+      text: "    pub fn alias<T: Into<String>>(mut self, name: T) -> Self {\n        if let Some(ref mut alias) = self.alias {\n            (*alias).push(name.into());\n        } else {\n            self.alias = Some(vec![name.into()]);\n        }\n        self\n    }"
+    - complexity: 3
+      start_line: 167
+      end_line: 180
+      text: "    pub fn command(mut self, command: Command) -> Self {\n        if let Some(ref mut commands) = self.commands {\n            if commands\n                .iter()\n                .any(|registered| registered.name == command.name)\n            {\n                panic!(r#\"Command name \"{}\" is already registered.\"#, command.name);\n            }\n            (*commands).push(command);\n        } else {\n            self.commands = Some(vec![command]);\n        }\n        self\n    }"
+    - complexity: 3
+      start_line: 182
+      end_line: 190
+      text: "    fn select_command(&self, cmd: &str) -> Option<&Command> {\n        match &self.commands {\n            Some(commands) => commands.iter().find(|command| match &command.alias {\n                Some(alias) => command.name == cmd || alias.iter().any(|a| a == cmd),\n                None => command.name == cmd,\n            }),\n            None => None,\n        }\n    }"
+    - complexity: 4
+      start_line: 184
+      end_line: 187
+      text: "            Some(commands) => commands.iter().find(|command| match &command.alias {\n                Some(alias) => command.name == cmd || alias.iter().any(|a| a == cmd),\n                None => command.name == cmd,\n            }),"
+    - complexity: 3
+      start_line: 193
+      end_line: 202
+      text: "        raw_args.iter().fold(Vec::<String>::new(), |mut acc, cur| {\n            if cur.starts_with('-') && cur.contains('=') {\n                let mut splitted_flag: Vec<String> =\n                    cur.splitn(2, '=').map(|s| s.to_owned()).collect();\n                acc.append(&mut splitted_flag);\n            } else {\n                acc.push(cur.to_owned());\n            }\n            acc\n        })"
+    - complexity: 13
+      start_line: 207
+      end_line: 244
+      text: "    pub fn run(&self, args: Vec<String>) {\n        let args = Self::normalized_args(args);\n\n        match args.split_first() {\n            Some((cmd, args_v)) => match self.select_command(cmd) {\n                Some(command) => command.run(args_v.to_vec()),\n                None => match self.action {\n                    Some(action) => {\n                        if args.contains(&\"-h\".to_string()) || args.contains(&\"--help\".to_string())\n                        {\n                            self.help();\n                            return;\n                        }\n                        action(&Context::new(\n                            args.to_vec(),\n                            self.flags.clone(),\n                            self.help_text(),\n                        ));\n                    }\n                    None => self.help(),\n                },\n            },\n            None => match self.action {\n                Some(action) => {\n                    if args.contains(&\"-h\".to_string()) || args.contains(&\"--help\".to_string()) {\n                        self.help();\n                        return;\n                    }\n                    action(&Context::new(\n                        args.to_vec(),\n                        self.flags.clone(),\n                        self.help_text(),\n                    ));\n                }\n                None => self.help(),\n            },\n        }\n    }"
+    - complexity: 4
+      start_line: 246
+      end_line: 313
+      text: "    fn flag_help_text(&self) -> String {\n        let mut text = String::new();\n        text += \"Flags:\\n\";\n        let help_flag = \"-h, --help\";\n\n        if let Some(flags) = &self.flags {\n            let int_val = \"<int>\";\n            let float_val = \"<float>\";\n            let string_val = \"<string>\";\n\n            let flag_helps = &flags.iter().map(|f| {\n                let alias = match &f.alias {\n                    Some(alias) => alias\n                        .iter()\n                        .map(|a| format!(\"-{}\", a))\n                        .collect::<Vec<String>>()\n                        .join(\", \"),\n                    None => String::new(),\n                };\n                let val = match f.flag_type {\n                    FlagType::Int => int_val,\n                    FlagType::Float => float_val,\n                    FlagType::String => string_val,\n                    _ => \"\",\n                };\n\n                let help = if alias.is_empty() {\n                    format!(\"--{} {}\", f.name, val)\n                } else {\n                    format!(\"{}, --{} {}\", alias, f.name, val)\n                };\n\n                (help, f.description.clone())\n            });\n\n            let flag_name_max_len = flag_helps\n                .clone()\n                .map(|h| h.0.len())\n                .chain(vec![help_flag.len()].into_iter())\n                .max()\n                .unwrap();\n\n            for flag_help in flag_helps.clone() {\n                text += &format!(\"\\t{}\", flag_help.0);\n\n                if let Some(usage) = &flag_help.1 {\n                    let flag_name_len = flag_help.0.len();\n                    text += &format!(\n                        \"{} : {}\\n\",\n                        \" \".repeat(flag_name_max_len - flag_name_len),\n                        usage\n                    );\n                } else {\n                    text += \"\\n\";\n                }\n            }\n\n            text += &format!(\n                \"\\t{}{} : Show help\\n\",\n                help_flag,\n                \" \".repeat(flag_name_max_len - help_flag.len())\n            );\n        } else {\n            text += &format!(\"\\t{} : Show help\\n\", help_flag);\n        }\n\n        text\n    }"
+    - complexity: 8
+      start_line: 256
+      end_line: 279
+      text: "            let flag_helps = &flags.iter().map(|f| {\n                let alias = match &f.alias {\n                    Some(alias) => alias\n                        .iter()\n                        .map(|a| format!(\"-{}\", a))\n                        .collect::<Vec<String>>()\n                        .join(\", \"),\n                    None => String::new(),\n                };\n                let val = match f.flag_type {\n                    FlagType::Int => int_val,\n                    FlagType::Float => float_val,\n                    FlagType::String => string_val,\n                    _ => \"\",\n                };\n\n                let help = if alias.is_empty() {\n                    format!(\"--{} {}\", f.name, val)\n                } else {\n                    format!(\"{}, --{} {}\", alias, f.name, val)\n                };\n\n                (help, f.description.clone())\n            });"
+    - complexity: 6
+      start_line: 315
+      end_line: 355
+      text: "    fn command_help_text(&self) -> String {\n        let mut text = String::new();\n\n        if let Some(commands) = &self.commands {\n            text += \"\\nCommands:\\n\";\n\n            let name_max_len = &commands\n                .iter()\n                .map(|c| {\n                    if let Some(alias) = &c.alias {\n                        format!(\"{}, {}\", alias.join(\", \"), c.name).len()\n                    } else {\n                        c.name.len()\n                    }\n                })\n                .max()\n                .unwrap();\n\n            for c in commands {\n                let command_name = if let Some(alias) = &c.alias {\n                    format!(\"{}, {}\", alias.join(\", \"), c.name)\n                } else {\n                    c.name.clone()\n                };\n\n                let description = match &c.description {\n                    Some(description) => description,\n                    None => \"\",\n                };\n\n                text += &format!(\n                    \"\\t{} {}: {}\\n\",\n                    command_name,\n                    \" \".repeat(name_max_len - command_name.len()),\n                    description\n                );\n            }\n        }\n\n        text\n    }"
+    - complexity: 2
+      start_line: 323
+      end_line: 329
+      text: "                .map(|c| {\n                    if let Some(alias) = &c.alias {\n                        format!(\"{}, {}\", alias.join(\", \"), c.name).len()\n                    } else {\n                        c.name.len()\n                    }\n                })"
+    - complexity: 2
+      start_line: 358
+      end_line: 375
+      text: "impl Help for Command {\n    fn help_text(&self) -> String {\n        let mut text = String::new();\n\n        if let Some(description) = &self.description {\n            text += &format!(\"Description:\\n\\t{}\\n\\n\", description);\n        }\n\n        if let Some(usage) = &self.usage {\n            text += &format!(\"Usage:\\n\\t{}\\n\\n\", usage);\n        }\n\n        text += &self.flag_help_text();\n        text += &self.command_help_text();\n\n        text\n    }\n}"
+    - complexity: 3
+      start_line: 359
+      end_line: 374
+      text: "    fn help_text(&self) -> String {\n        let mut text = String::new();\n\n        if let Some(description) = &self.description {\n            text += &format!(\"Description:\\n\\t{}\\n\\n\", description);\n        }\n\n        if let Some(usage) = &self.usage {\n            text += &format!(\"Usage:\\n\\t{}\\n\\n\", usage);\n        }\n\n        text += &self.flag_help_text();\n        text += &self.command_help_text();\n\n        text\n    }"
+  Cognitive:
+    - complexity: 2
+      start_line: 95
+      end_line: 102
+      text: "    pub fn flag(mut self, flag: Flag) -> Self {\n        if let Some(ref mut flags) = self.flags {\n            (*flags).push(flag);\n        } else {\n            self.flags = Some(vec![flag]);\n        }\n        self\n    }"
+    - complexity: 2
+      start_line: 114
+      end_line: 121
+      text: "    pub fn alias<T: Into<String>>(mut self, name: T) -> Self {\n        if let Some(ref mut alias) = self.alias {\n            (*alias).push(name.into());\n        } else {\n            self.alias = Some(vec![name.into()]);\n        }\n        self\n    }"
+    - complexity: 4
+      start_line: 167
+      end_line: 180
+      text: "    pub fn command(mut self, command: Command) -> Self {\n        if let Some(ref mut commands) = self.commands {\n            if commands\n                .iter()\n                .any(|registered| registered.name == command.name)\n            {\n                panic!(r#\"Command name \"{}\" is already registered.\"#, command.name);\n            }\n            (*commands).push(command);\n        } else {\n            self.commands = Some(vec![command]);\n        }\n        self\n    }"
+    - complexity: 4
+      start_line: 184
+      end_line: 187
+      text: "            Some(commands) => commands.iter().find(|command| match &command.alias {\n                Some(alias) => command.name == cmd || alias.iter().any(|a| a == cmd),\n                None => command.name == cmd,\n            }),"
+    - complexity: 4
+      start_line: 193
+      end_line: 202
+      text: "        raw_args.iter().fold(Vec::<String>::new(), |mut acc, cur| {\n            if cur.starts_with('-') && cur.contains('=') {\n                let mut splitted_flag: Vec<String> =\n                    cur.splitn(2, '=').map(|s| s.to_owned()).collect();\n                acc.append(&mut splitted_flag);\n            } else {\n                acc.push(cur.to_owned());\n            }\n            acc\n        })"
+    - complexity: 17
+      start_line: 207
+      end_line: 244
+      text: "    pub fn run(&self, args: Vec<String>) {\n        let args = Self::normalized_args(args);\n\n        match args.split_first() {\n            Some((cmd, args_v)) => match self.select_command(cmd) {\n                Some(command) => command.run(args_v.to_vec()),\n                None => match self.action {\n                    Some(action) => {\n                        if args.contains(&\"-h\".to_string()) || args.contains(&\"--help\".to_string())\n                        {\n                            self.help();\n                            return;\n                        }\n                        action(&Context::new(\n                            args.to_vec(),\n                            self.flags.clone(),\n                            self.help_text(),\n                        ));\n                    }\n                    None => self.help(),\n                },\n            },\n            None => match self.action {\n                Some(action) => {\n                    if args.contains(&\"-h\".to_string()) || args.contains(&\"--help\".to_string()) {\n                        self.help();\n                        return;\n                    }\n                    action(&Context::new(\n                        args.to_vec(),\n                        self.flags.clone(),\n                        self.help_text(),\n                    ));\n                }\n                None => self.help(),\n            },\n        }\n    }"
+    - complexity: 8
+      start_line: 246
+      end_line: 313
+      text: "    fn flag_help_text(&self) -> String {\n        let mut text = String::new();\n        text += \"Flags:\\n\";\n        let help_flag = \"-h, --help\";\n\n        if let Some(flags) = &self.flags {\n            let int_val = \"<int>\";\n            let float_val = \"<float>\";\n            let string_val = \"<string>\";\n\n            let flag_helps = &flags.iter().map(|f| {\n                let alias = match &f.alias {\n                    Some(alias) => alias\n                        .iter()\n                        .map(|a| format!(\"-{}\", a))\n                        .collect::<Vec<String>>()\n                        .join(\", \"),\n                    None => String::new(),\n                };\n                let val = match f.flag_type {\n                    FlagType::Int => int_val,\n                    FlagType::Float => float_val,\n                    FlagType::String => string_val,\n                    _ => \"\",\n                };\n\n                let help = if alias.is_empty() {\n                    format!(\"--{} {}\", f.name, val)\n                } else {\n                    format!(\"{}, --{} {}\", alias, f.name, val)\n                };\n\n                (help, f.description.clone())\n            });\n\n            let flag_name_max_len = flag_helps\n                .clone()\n                .map(|h| h.0.len())\n                .chain(vec![help_flag.len()].into_iter())\n                .max()\n                .unwrap();\n\n            for flag_help in flag_helps.clone() {\n                text += &format!(\"\\t{}\", flag_help.0);\n\n                if let Some(usage) = &flag_help.1 {\n                    let flag_name_len = flag_help.0.len();\n                    text += &format!(\n                        \"{} : {}\\n\",\n                        \" \".repeat(flag_name_max_len - flag_name_len),\n                        usage\n                    );\n                } else {\n                    text += \"\\n\";\n                }\n            }\n\n            text += &format!(\n                \"\\t{}{} : Show help\\n\",\n                help_flag,\n                \" \".repeat(flag_name_max_len - help_flag.len())\n            );\n        } else {\n            text += &format!(\"\\t{} : Show help\\n\", help_flag);\n        }\n\n        text\n    }"
+    - complexity: 10
+      start_line: 256
+      end_line: 279
+      text: "            let flag_helps = &flags.iter().map(|f| {\n                let alias = match &f.alias {\n                    Some(alias) => alias\n                        .iter()\n                        .map(|a| format!(\"-{}\", a))\n                        .collect::<Vec<String>>()\n                        .join(\", \"),\n                    None => String::new(),\n                };\n                let val = match f.flag_type {\n                    FlagType::Int => int_val,\n                    FlagType::Float => float_val,\n                    FlagType::String => string_val,\n                    _ => \"\",\n                };\n\n                let help = if alias.is_empty() {\n                    format!(\"--{} {}\", f.name, val)\n                } else {\n                    format!(\"{}, --{} {}\", alias, f.name, val)\n                };\n\n                (help, f.description.clone())\n            });"
+    - complexity: 10
+      start_line: 315
+      end_line: 355
+      text: "    fn command_help_text(&self) -> String {\n        let mut text = String::new();\n\n        if let Some(commands) = &self.commands {\n            text += \"\\nCommands:\\n\";\n\n            let name_max_len = &commands\n                .iter()\n                .map(|c| {\n                    if let Some(alias) = &c.alias {\n                        format!(\"{}, {}\", alias.join(\", \"), c.name).len()\n                    } else {\n                        c.name.len()\n                    }\n                })\n                .max()\n                .unwrap();\n\n            for c in commands {\n                let command_name = if let Some(alias) = &c.alias {\n                    format!(\"{}, {}\", alias.join(\", \"), c.name)\n                } else {\n                    c.name.clone()\n                };\n\n                let description = match &c.description {\n                    Some(description) => description,\n                    None => \"\",\n                };\n\n                text += &format!(\n                    \"\\t{} {}: {}\\n\",\n                    command_name,\n                    \" \".repeat(name_max_len - command_name.len()),\n                    description\n                );\n            }\n        }\n\n        text\n    }"
+    - complexity: 4
+      start_line: 323
+      end_line: 329
+      text: "                .map(|c| {\n                    if let Some(alias) = &c.alias {\n                        format!(\"{}, {}\", alias.join(\", \"), c.name).len()\n                    } else {\n                        c.name.len()\n                    }\n                })"
+    - complexity: 2
+      start_line: 359
+      end_line: 374
+      text: "    fn help_text(&self) -> String {\n        let mut text = String::new();\n\n        if let Some(description) = &self.description {\n            text += &format!(\"Description:\\n\\t{}\\n\\n\", description);\n        }\n\n        if let Some(usage) = &self.usage {\n            text += &format!(\"Usage:\\n\\t{}\\n\\n\", usage);\n        }\n\n        text += &self.flag_help_text();\n        text += &self.command_help_text();\n\n        text\n    }"
+
