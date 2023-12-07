@@ -1,23 +1,18 @@
 use std::path::Path;
 
-use complex_code_spotter::{Complexity, OutputFormat, SnippetsProducer};
+use complex_code_spotter::{Complexity, SnippetsProducer};
 
 const SOURCE_PATH: &str = "data/seahorse/src";
 const SNAPSHOT_PATH: &str = "snapshots";
-const TMP_DIR: &str = "complex-code-spotter";
 
 fn run_tests(subdir: &str, complexities: Vec<(Complexity, usize)>) {
     // Snapshot path
     let snapshot_path = Path::new(SNAPSHOT_PATH).join(subdir);
 
-    // Temporary path
-    let tmp_path = std::env::temp_dir().join(TMP_DIR);
-
     // Retrieve snippets
     let snippets = SnippetsProducer::new()
         .complexities(complexities)
-        .output_format(OutputFormat::Json)
-        .run(Path::new(SOURCE_PATH), &tmp_path)
+        .run(Path::new(SOURCE_PATH))
         .unwrap();
 
     if let Some(snippets) = snippets {

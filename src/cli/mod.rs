@@ -85,10 +85,10 @@ pub(crate) fn run_complex_code_spotter(args: Args) {
 
     SnippetsProducer::new()
         .complexities(args.complexities)
-        .enable_write()
         .output_format(args.output_format)
+        .output(&args.output_path)
         .include(args.include)
         .exclude(args.exclude)
-        .run(args.source_path, args.output_path)
+        .run(args.source_path)
         .unwrap();
 }

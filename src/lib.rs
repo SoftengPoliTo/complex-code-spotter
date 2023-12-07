@@ -35,9 +35,9 @@ use non_utf8::encode_to_utf8;
 use snippets::get_code_snippets;
 
 #[derive(Debug, Default)]
-struct Parameters {
+struct Parameters<'a> {
     output_format: OutputFormat,
-    write: bool,
+    output_path: Option<&'a Path>,
     include: Vec<String>,
     exclude: Vec<String>,
     complexities: Vec<(Complexity, usize)>,
@@ -50,15 +50,15 @@ struct Parameters {
 /// Write on files is disabled by default, but when enabled,
 /// *markdown* is the output format.
 #[derive(Debug)]
-pub struct SnippetsProducer(Parameters);
+pub struct SnippetsProducer<'a>(Parameters<'a>);
 
-impl Default for SnippetsProducer {
+impl<'a> Default for SnippetsProducer<'a> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl SnippetsProducer {
+impl<'a> SnippetsProducer<'a> {
     /// Creates a new `SnippetsProducer` instance.
     pub fn new() -> Self {
         Self(Parameters {
@@ -85,9 +85,9 @@ impl SnippetsProducer {
         self
     }
 
-    /// Enables writing on files.
-    pub fn enable_write(mut self) -> Self {
-        self.0.write = true;
+    /// Sets output path.
+    pub fn output(mut self, path: &'a Path) -> Self {
+        self.0.output_path = Some(path);
         self
     }
 
@@ -98,13 +98,9 @@ impl SnippetsProducer {
     }
 
     /// Runs the complex code snippets producer.
-    pub fn run<P: AsRef<Path>, K: AsRef<Path>>(
-        self,
-        source_path: P,
-        output_path: K,
-    ) -> Result<Option<Vec<Snippets>>> {
+    pub fn run<P: AsRef<Path>>(self, source_path: P) -> Result<Option<Vec<Snippets>>> {
         // Check if output path is a file.
-        if output_path.as_ref().is_file() {
+        if self.0.output_path.map_or(false, |p| p.is_file()) {
             return Err(Error::FormatPath("Output path MUST be a directory"));
         }
 
@@ -142,7 +138,7 @@ impl SnippetsProducer {
         }
 
         // Write files.
-        if self.0.write {
+        if let Some(output_path) = self.0.output_path {
             self.0
                 .output_format
                 .write_output(output_path, &snippets_context)?;
