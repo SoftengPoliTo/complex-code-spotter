@@ -2,12 +2,12 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use rust_code_analysis::{FuncSpace, LANG};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::metrics::Complexity;
 
 /// Supported languages.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum Language {
     /// JavaScript.
     Javascript,
@@ -67,7 +67,7 @@ impl Language {
 }
 
 /// Snippets data.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SnippetData {
     /// Snippet complexity value.
     pub complexity: usize,
@@ -81,7 +81,7 @@ pub struct SnippetData {
 
 /// Snippets of complex code obtained analyzing each complexity metric and
 /// associated to a single source file.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Snippets {
     /// Source path.
     pub source_path: PathBuf,

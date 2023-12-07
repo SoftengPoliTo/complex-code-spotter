@@ -3,7 +3,7 @@ use std::io::{Error, ErrorKind};
 use std::str::FromStr;
 
 use rust_code_analysis::FuncSpace;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 trait ComplexityChecker {
     fn value(space: &FuncSpace, threshold: usize) -> Option<usize>;
@@ -41,7 +41,9 @@ impl ComplexityChecker for Cognitive {
 }
 
 /// Supported complexities metrics.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 pub enum Complexity {
     /// Cyclomatic metric.
     #[default]
