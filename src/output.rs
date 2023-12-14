@@ -1,5 +1,6 @@
 use std::fmt;
-use std::fs::{create_dir_all, write, File};
+use std::fs::{create_dir_all, File};
+use std::io::prelude::*;
 use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -74,6 +75,20 @@ impl OutputFormat {
         &["json", "markdown", "html", "all"]
     }
 
+    pub(crate) fn write_file<P: AsRef<Path>>(
+        &self,
+        file_path: P,
+        snippets: &[Snippets],
+    ) -> Result<()> {
+        // Get path
+        let file_path = file_path.as_ref();
+
+        match self {
+            Self::Json => SingleJson::write_format(file_path, snippets),
+            _ => Ok(()),
+        }
+    }
+
     pub(crate) fn write_output<P: AsRef<Path>>(
         &self,
         output_path: P,
@@ -136,13 +151,22 @@ fn create_dir(path: &Path, dir: &str) -> Result<PathBuf> {
 }
 
 #[inline(always)]
-fn create_file<W>(path: PathBuf, extension: &str, writer: W) -> Result<()>
+fn write_file_with_extension<W>(path: &Path, extension: &str, writer: W) -> Result<()>
 where
-    W: FnOnce(PathBuf) -> Result<()>,
+    W: FnOnce(File) -> Result<()>,
 {
     let final_path = path.with_extension(extension);
     debug!("Creating {:?}", final_path);
-    writer(final_path)
+    write_file(&final_path, writer)
+}
+
+#[inline(always)]
+fn write_file<F>(path: &Path, writer: F) -> Result<()>
+where
+    F: FnOnce(File) -> Result<()>,
+{
+    let file = File::create(path)?;
+    writer(file)
 }
 
 #[inline(always)]
@@ -152,6 +176,12 @@ fn produce_templates_environment<'a>(range: RangeInclusive<usize>) -> Result<Env
         environment.add_template(template_name, template_file)?;
     }
     Ok(environment)
+}
+
+trait WriteSingleFormat {
+    const EXTENSION: &'static str;
+
+    fn write_format(path: &Path, snippets: &[Snippets]) -> Result<()>;
 }
 
 trait WriteFormat {
@@ -182,8 +212,9 @@ trait WriteTemplate<'a> {
         let filled_template = template.render(context)?;
 
         // Write filled template in a new file
-        create_file(dir, Self::EXTENSION, |path| {
-            write(path, filled_template).map_err(|e| e.into())
+        write_file_with_extension(&dir, Self::EXTENSION, |mut file| {
+            file.write_all(filled_template.as_bytes())
+                .map_err(|e| e.into())
         })?;
 
         Ok(())
@@ -312,11 +343,31 @@ impl WriteFormat for Json {
         let dir = create_dir(path, Self::DIR)?;
 
         for (filename, snippet) in filenames.iter().zip(snippets) {
-            create_file(dir.join(filename), Self::EXTENSION, |path| {
-                let json_file = File::create(path)?;
-                serde_json::to_writer_pretty(json_file, snippet).map_err(|e| e.into())
+            write_file_with_extension(&dir.join(filename), Self::EXTENSION, |file| {
+                serde_json::to_writer_pretty(file, snippet).map_err(|e| e.into())
             })?;
         }
         Ok(())
+    }
+}
+
+struct SingleJson;
+
+impl WriteSingleFormat for SingleJson {
+    const EXTENSION: &'static str = "json";
+
+    fn write_format(file_path: &Path, snippets: &[Snippets]) -> Result<()> {
+        if file_path
+            .extension()
+            .map_or(true, |ext| ext != Self::EXTENSION)
+        {
+            write_file_with_extension(file_path, Self::EXTENSION, |file| {
+                serde_json::to_writer_pretty(file, snippets).map_err(|e| e.into())
+            })
+        } else {
+            write_file(file_path, |file| {
+                serde_json::to_writer_pretty(file, snippets).map_err(|e| e.into())
+            })
+        }
     }
 }

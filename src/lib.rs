@@ -38,6 +38,7 @@ use snippets::get_code_snippets;
 struct Parameters<'a> {
     output_format: OutputFormat,
     output_path: Option<&'a Path>,
+    file_path: Option<&'a Path>,
     include: Vec<String>,
     exclude: Vec<String>,
     complexities: Vec<(Complexity, usize)>,
@@ -91,6 +92,12 @@ impl<'a> SnippetsProducer<'a> {
         self
     }
 
+    /// Sets single file path.
+    pub fn file_path(mut self, path: &'a Path) -> Self {
+        self.0.file_path = Some(path);
+        self
+    }
+
     /// Sets output format.
     pub fn output_format(mut self, output_format: OutputFormat) -> Self {
         self.0.output_format = output_format;
@@ -99,7 +106,12 @@ impl<'a> SnippetsProducer<'a> {
 
     /// Runs the complex code snippets producer.
     pub fn run<P: AsRef<Path>>(self, source_path: P) -> Result<Option<Vec<Snippets>>> {
-        // Check if output path is a file.
+        // Check if file path is a file.
+        if self.0.file_path.map_or(false, |p| p.is_dir()) {
+            return Err(Error::FormatPath("File path MUST be a file"));
+        }
+
+        // Check if output path is a directory.
         if self.0.output_path.map_or(false, |p| p.is_file()) {
             return Err(Error::FormatPath("Output path MUST be a directory"));
         }
@@ -138,7 +150,11 @@ impl<'a> SnippetsProducer<'a> {
         }
 
         // Write files.
-        if let Some(output_path) = self.0.output_path {
+        if let Some(file_path) = self.0.file_path {
+            self.0
+                .output_format
+                .write_file(file_path, &snippets_context)?;
+        } else if let Some(output_path) = self.0.output_path {
             self.0
                 .output_format
                 .write_output(output_path, &snippets_context)?;
