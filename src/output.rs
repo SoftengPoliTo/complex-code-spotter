@@ -75,27 +75,19 @@ impl OutputFormat {
         &["json", "markdown", "html", "all"]
     }
 
-    pub(crate) fn write_file<P: AsRef<Path>>(
-        &self,
-        file_path: P,
-        snippets: &[Snippets],
-    ) -> Result<()> {
-        // Get path
-        let file_path = file_path.as_ref();
-
-        match self {
-            Self::Json => SingleJson::write_format(file_path, snippets),
-            _ => Ok(()),
-        }
-    }
-
     pub(crate) fn write_output<P: AsRef<Path>>(
         &self,
         output_path: P,
+        is_single_file: bool,
         snippets: &[Snippets],
     ) -> Result<()> {
         // Get path
         let output_path = output_path.as_ref();
+
+        // Run single file producer
+        if matches!(self, Self::Json) && is_single_file {
+            return SingleJson::write_format(output_path, snippets);
+        }
 
         // Create output filenames.
         let filenames = create_filenames(snippets);

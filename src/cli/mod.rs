@@ -45,6 +45,8 @@ pub(crate) struct Args {
     pub(crate) source_path: PathBuf,
     /// Output path containing the snippets of complex code for each file
     output_path: PathBuf,
+    /// Whether to output every snippet of complex code within a single file
+    is_single_file: bool,
     /// Output the generated paths as they are produced
     #[arg(short, long)]
     verbose: bool,
@@ -87,6 +89,7 @@ pub(crate) fn run_complex_code_spotter(args: Args) {
         .complexities(args.complexities)
         .output_format(args.output_format)
         .output(&args.output_path)
+        .is_single_file(args.is_single_file)
         .include(args.include)
         .exclude(args.exclude)
         .run(args.source_path)

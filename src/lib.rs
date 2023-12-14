@@ -38,7 +38,7 @@ use snippets::get_code_snippets;
 struct Parameters<'a> {
     output_format: OutputFormat,
     output_path: Option<&'a Path>,
-    file_path: Option<&'a Path>,
+    is_single_file: bool,
     include: Vec<String>,
     exclude: Vec<String>,
     complexities: Vec<(Complexity, usize)>,
@@ -92,9 +92,9 @@ impl<'a> SnippetsProducer<'a> {
         self
     }
 
-    /// Sets single file path.
-    pub fn file_path(mut self, path: &'a Path) -> Self {
-        self.0.file_path = Some(path);
+    /// Whether the output file is a single file path.
+    pub fn is_single_file(mut self, is_single_file: bool) -> Self {
+        self.0.is_single_file = is_single_file;
         self
     }
 
@@ -106,14 +106,19 @@ impl<'a> SnippetsProducer<'a> {
 
     /// Runs the complex code snippets producer.
     pub fn run<P: AsRef<Path>>(self, source_path: P) -> Result<Option<Vec<Snippets>>> {
-        // Check if file path is a file.
-        if self.0.file_path.map_or(false, |p| p.is_dir()) {
-            return Err(Error::FormatPath("File path MUST be a file"));
-        }
-
         // Check if output path is a directory.
-        if self.0.output_path.map_or(false, |p| p.is_file()) {
+        if self
+            .0
+            .output_path
+            .map_or(false, |p| p.is_file() && !self.0.is_single_file)
+        {
             return Err(Error::FormatPath("Output path MUST be a directory"));
+        } else if self // Check if output path is a file.
+            .0
+            .output_path
+            .map_or(false, |p| p.is_dir() && self.0.is_single_file)
+        {
+            return Err(Error::FormatPath("Output path MUST be a file"));
         }
 
         // Create container for snippets.
@@ -150,14 +155,12 @@ impl<'a> SnippetsProducer<'a> {
         }
 
         // Write files.
-        if let Some(file_path) = self.0.file_path {
-            self.0
-                .output_format
-                .write_file(file_path, &snippets_context)?;
-        } else if let Some(output_path) = self.0.output_path {
-            self.0
-                .output_format
-                .write_output(output_path, &snippets_context)?;
+        if let Some(output_path) = self.0.output_path {
+            self.0.output_format.write_output(
+                output_path,
+                self.0.is_single_file,
+                &snippets_context,
+            )?;
         }
 
         Ok(Some(snippets_context))
