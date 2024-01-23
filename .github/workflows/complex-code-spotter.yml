@@ -378,8 +378,7 @@ jobs:
     # with the effective command that valgrind has to analyze
     - name: Run cargo-valgrind
       run: |
-        cargo valgrind run -- --help
-        # cargo valgrind test
+        cargo valgrind test
 
   careful:
 
@@ -408,7 +407,6 @@ jobs:
     - name: Run cargo-careful
       run: |
         cargo +nightly careful test
-        # cargo +nightly careful run
 
   address-sanitizer:
 
@@ -430,34 +428,3 @@ jobs:
         RUSTFLAGS: -Zsanitizer=address -Copt-level=3
         RUSTDOCFLAGS: -Zsanitizer=address
       run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu
-      # Use `cargo run` for the analysis of a binary.
-      # Usage of the `help` command as base command, please replace it
-      # with the effective command that AddressSanitizer has to analyze
-      # run: cargo run -Zbuild-std --target x86_64-unknown-linux-gnu -- --help
-
-################################## FUZZING LEVEL #################################
-
-  fuzzing-ubuntu:
-
-    needs: [valgrind, careful, address-sanitizer]
-
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Install Rust nightly
-      uses: dtolnay/rust-toolchain@nightly
-      with:
-        toolchain: nightly
-
-    - name: Install cargo-fuzz
-      env:
-        FUZZ_LINK: https://github.com/rust-fuzz/cargo-fuzz/releases/download
-        FUZZ_VERSION: 0.11.2
-      run: |
-        curl -L "$FUZZ_LINK/$FUZZ_VERSION/cargo-fuzz-$FUZZ_VERSION-x86_64-unknown-linux-musl.tar.gz" |
-        tar xz -C $HOME/.cargo/bin
-
-    - name: Run cargo-fuzz
-      run: cargo fuzz build --target x86_64-unknown-linux-gnu
