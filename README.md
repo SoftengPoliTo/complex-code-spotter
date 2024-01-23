@@ -108,8 +108,4 @@ Both these options can be used more than once.
 
 ## License
 
-Released under the [MIT License](LICENSE).
-
-## Acknowledgements
-
-This software has been developed in the scope of the H2020 project SIFIS-Home with GA n. 952652.
+Released under the [MIT License](LICENSES/MIT.txt).

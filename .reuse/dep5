@@ -1,0 +1,7 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: complex-code-spotter
+Source: https://github.com/SoftengPoliTo/complex-code-spotter
+
+Files: *
+Copyright: 2023 SoftengPoliTo
+License: MIT
