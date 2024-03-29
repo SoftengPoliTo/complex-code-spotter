@@ -2,7 +2,7 @@ use std::path::Path;
 
 use complex_code_spotter::{Complexity, SnippetsProducer};
 
-const SOURCE_PATH: &str = "data/seahorse/src";
+const SOURCE_PATH: &str = "data/seahorse/src/";
 const SNAPSHOT_PATH: &str = "snapshots";
 
 fn run_tests(subdir: &str, complexities: Vec<(Complexity, usize)>) {
