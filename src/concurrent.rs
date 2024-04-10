@@ -154,8 +154,8 @@ impl ConcurrentRunner {
 
             // Result produced by the composer.
             composer.join()?
-        }); 
-        
+        });
+
         match result {
             Ok(output) => output,
             Err(e) => Err(e.into()),
