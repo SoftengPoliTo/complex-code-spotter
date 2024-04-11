@@ -9,16 +9,19 @@
 //! When the value associated to each of the metrics exceeds a preset threshold,
 //! a snippet of code is automatically extracted.
 
-mod concurrent;
 mod error;
 mod metrics;
 mod non_utf8;
 mod output;
 mod snippets;
 
+use crossbeam::channel::{bounded, Receiver, Sender};
+use crossbeam::scope;
 pub use metrics::Complexity;
 pub use output::OutputFormat;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 pub use snippets::Snippets;
+use walkdir::{DirEntry, WalkDir};
 
 use std::path::{Path, PathBuf};
 use std::thread::available_parallelism;
@@ -27,7 +30,6 @@ use globset::{Glob, GlobSet, GlobSetBuilder};
 use rust_code_analysis::{get_function_spaces, guess_language, read_file_with_eol};
 use tracing::info;
 
-use concurrent::{ConcurrentRunner, FilesData};
 use error::{Error, Result};
 use non_utf8::encode_to_utf8;
 use snippets::get_code_snippets;
@@ -131,8 +133,7 @@ impl<'a> SnippetsProducer<'a> {
 
         // Extracts and retrieves snippets concurrently.
         let snippets_context =
-            ConcurrentRunner::new(extract_file_snippets, num_jobs, self.0.complexities)
-                .run(files_data)?;
+            ConcurrentRunner::new(num_jobs, self.0.complexities).run(files_data)?;
 
         // If there are no snippets, print a message informing that the code is
         // clean.
@@ -165,6 +166,150 @@ impl<'a> SnippetsProducer<'a> {
         });
         globset.build().map_or(GlobSet::empty(), |globset| globset)
     }
+}
+
+/// Data related to files.
+struct FilesData {
+    /// Kind of files included in a search.
+    pub include: GlobSet,
+    /// Kind of files excluded from a search.
+    pub exclude: GlobSet,
+    /// File path.
+    pub path: PathBuf,
+}
+
+// A runner to process files concurrently.
+struct ConcurrentRunner {
+    num_jobs: usize,
+    complexities: Vec<(Complexity, usize)>,
+}
+
+impl ConcurrentRunner {
+    // Creates a new `ConcurrentRunner`.
+    //
+    // * `proc_files` - Function that processes each file found during
+    //    the search.
+    // * `num_jobs` - Number of jobs utilized to process files concurrently.
+    fn new(num_jobs: usize, complexities: Vec<(Complexity, usize)>) -> Self {
+        Self {
+            num_jobs,
+            complexities,
+        }
+    }
+
+    fn send_file(&self, path: PathBuf, sender: &Sender<PathBuf>) -> Result<()> {
+        sender
+            .send(path)
+            .map_err(|e| Error::Concurrent(format!("Sender: {}", e).into()))
+    }
+
+    fn producer(&self, sender: Sender<PathBuf>, files_data: FilesData) -> Result<()> {
+        let FilesData {
+            path,
+            ref include,
+            ref exclude,
+        } = files_data;
+
+        if !path.exists() {
+            return Err(Error::Concurrent(
+                format!("Sender: {:?} does not exist", path).into(),
+            ));
+        }
+        if path.is_dir() {
+            for entry in WalkDir::new(path)
+                .into_iter()
+                .filter_entry(|e| !is_hidden(e))
+            {
+                let entry = match entry {
+                    Ok(entry) => entry,
+                    Err(e) => return Err(Error::Concurrent(format!("Sender: {}", e).into())),
+                };
+                let path = entry.path().to_path_buf();
+                if entry_is_valid(&path, include, exclude) {
+                    self.send_file(path, &sender)?;
+                }
+            }
+        } else if entry_is_valid(&path, include, exclude) {
+            self.send_file(path, &sender)?;
+        }
+
+        Ok(())
+    }
+
+    fn consumer(&self, receiver: Receiver<PathBuf>, sender: Sender<Snippets>) -> Result<()> {
+        // Extracts the snippets from the files received from the producer
+        // and sends them to the composer.
+        while let Ok(file) = receiver.recv() {
+            if let Some(snippets) = extract_file_snippets(file.clone(), &self.complexities) {
+                sender
+                    .send(snippets)
+                    .map_err(|e| Error::Concurrent(format!("Sender: {}", e).into()))?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn composer(&self, receiver: Receiver<Snippets>) -> Result<Vec<Snippets>> {
+        let mut snippets_result = Vec::new();
+
+        // Collects the snippets received from the consumer.
+        while let Ok(snippets) = receiver.recv() {
+            snippets_result.push(snippets)
+        }
+
+        Ok(snippets_result)
+    }
+
+    // Runs the producer-consumer-composer approach to process the files
+    // contained in a directory and in its own subdirectories.
+    //
+    // * `files_data` - Information about the files to be included or excluded
+    //    from a search more the number of paths considered in the search.
+    fn run(self, files_data: FilesData) -> Result<Vec<Snippets>>
+    where
+        Self: Sync,
+    {
+        let (producer_sender, consumer_receiver) = bounded(self.num_jobs);
+        let (consumer_sender, composer_receiver) = bounded(self.num_jobs);
+
+        scope(|scope| {
+            // Producer.
+            scope.spawn(|_| self.producer(producer_sender, files_data));
+
+            // Composer.
+            let composer = scope.spawn(|_| self.composer(composer_receiver));
+
+            // Consumer.
+            (0..self.num_jobs).into_par_iter().try_for_each(|_| {
+                self.consumer(consumer_receiver.clone(), consumer_sender.clone())
+            })?;
+
+            // The Sender between consumers and composer must be dropped to ensure the channel between them closes.
+            // Otherwise, the composer will indefinitely await data from the consumers.
+            drop(consumer_sender);
+
+            // Result produced by the composer.
+            composer.join()?
+        })
+        .map_err(Into::<Error>::into)?
+    }
+}
+
+#[inline(always)]
+fn is_hidden(entry: &DirEntry) -> bool {
+    entry
+        .file_name()
+        .to_str()
+        .map(|s| s.starts_with('.'))
+        .unwrap_or(false)
+}
+
+#[inline(always)]
+fn entry_is_valid(path: &Path, include: &GlobSet, exclude: &GlobSet) -> bool {
+    (include.is_empty() || include.is_match(path))
+        && (exclude.is_empty() || !exclude.is_match(path))
+        && path.is_file()
 }
 
 fn extract_file_snippets(

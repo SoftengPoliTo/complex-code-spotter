@@ -273,6 +273,30 @@ jobs:
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
 
+  denyubuntu:
+
+    needs: [code-coverage, weighted-code-coverage]
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check dependencies changes
+      uses: dorny/paths-filter@v2
+      id: changes
+      with:
+        filters: |
+          cargo:
+            - 'Cargo.toml'
+            - 'Cargo.lock'
+
+    - name: Detect multiple versions of the same crate
+      if: steps.changes.outputs.cargo == 'true'
+      uses: EmbarkStudios/cargo-deny-action@v1
+      with:
+        command: check bans
+
   udeps:
 
     needs: [code-coverage, weighted-code-coverage]
