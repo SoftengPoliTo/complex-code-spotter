@@ -9,27 +9,27 @@
 //! When the value associated to each of the metrics exceeds a preset threshold,
 //! a snippet of code is automatically extracted.
 
-mod concurrent;
 mod error;
 mod metrics;
 mod non_utf8;
 mod output;
 mod snippets;
 
+use crossbeam::channel::{bounded, Receiver, Sender};
+use crossbeam::scope;
 pub use metrics::Complexity;
 pub use output::OutputFormat;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 pub use snippets::Snippets;
+use walkdir::{DirEntry, WalkDir};
 
-use std::borrow::Cow;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 use std::thread::available_parallelism;
 
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use rust_code_analysis::{get_function_spaces, guess_language, read_file_with_eol};
 use tracing::info;
 
-use concurrent::{ConcurrentRunner, FilesData};
 use error::{Error, Result};
 use non_utf8::encode_to_utf8;
 use snippets::get_code_snippets;
@@ -68,13 +68,13 @@ impl<'a> SnippetsProducer<'a> {
         })
     }
 
-    /// Sets a glob to include only a certain kind of files
+    /// Sets a glob to include only a certain kind of files.
     pub fn include(mut self, include: Vec<String>) -> Self {
         self.0.include = include;
         self
     }
 
-    /// Sets a glob to exclude only a certain kind of files
+    /// Sets a glob to exclude only a certain kind of files.
     pub fn exclude(mut self, exclude: Vec<String>) -> Self {
         self.0.exclude = exclude;
         self
@@ -121,31 +121,19 @@ impl<'a> SnippetsProducer<'a> {
             return Err(Error::FormatPath("Output path MUST be a file"));
         }
 
-        // Create container for snippets.
-        let snippets_context = Arc::new(Mutex::new(Vec::new()));
-
-        // Retrieve the number of available threads
+        // Retrieve the number of available threads.
         let num_jobs = available_parallelism()?.get();
-        // Define the configuration data
-        let cfg = SnippetsConfig {
-            complexities: self.0.complexities,
-            snippets: snippets_context.clone(),
-        };
 
-        // Define how to treat files
+        // Define how to treat files.
         let files_data = FilesData {
             include: Self::mk_globset(self.0.include),
             exclude: Self::mk_globset(self.0.exclude),
             path: source_path.as_ref().to_path_buf(),
         };
 
-        // Extracts snippets concurrently.
-        ConcurrentRunner::new(num_jobs, extract_file_snippets).run(cfg, files_data)?;
-
-        // Retrieve snippets.
-        let snippets_context = Arc::try_unwrap(snippets_context)
-            .map_err(|_| Error::Mutability(Cow::from("Unable to get computed snippets")))?
-            .into_inner()?;
+        // Extracts and retrieves snippets concurrently.
+        let snippets_context =
+            ConcurrentRunner::new(num_jobs, self.0.complexities).run(files_data)?;
 
         // If there are no snippets, print a message informing that the code is
         // clean.
@@ -180,28 +168,167 @@ impl<'a> SnippetsProducer<'a> {
     }
 }
 
-#[derive(Debug)]
-struct SnippetsConfig {
-    complexities: Vec<(Complexity, usize)>,
-    snippets: Arc<Mutex<Vec<Snippets>>>,
+// Data related to files.
+struct FilesData {
+    // Kind of files included in a search.
+    include: GlobSet,
+    // Kind of files excluded from a search.
+    exclude: GlobSet,
+    // File path.
+    path: PathBuf,
 }
 
-fn extract_file_snippets(source_path: PathBuf, cfg: &SnippetsConfig) -> Result<()> {
+// A runner to process files concurrently.
+struct ConcurrentRunner {
+    num_jobs: usize,
+    complexities: Vec<(Complexity, usize)>,
+}
+
+impl ConcurrentRunner {
+    // Creates a new `ConcurrentRunner`.
+    //
+    // * `proc_files` - Function that processes each file found during
+    //    the search.
+    // * `num_jobs` - Number of jobs utilized to process files concurrently.
+    fn new(num_jobs: usize, complexities: Vec<(Complexity, usize)>) -> Self {
+        Self {
+            num_jobs,
+            complexities,
+        }
+    }
+
+    fn send_file(&self, path: PathBuf, sender: &Sender<PathBuf>) -> Result<()> {
+        sender
+            .send(path)
+            .map_err(|e| Error::Concurrent(format!("Sender: {}", e).into()))
+    }
+
+    fn producer(&self, sender: Sender<PathBuf>, files_data: FilesData) -> Result<()> {
+        let FilesData {
+            path,
+            ref include,
+            ref exclude,
+        } = files_data;
+
+        if !path.exists() {
+            return Err(Error::Concurrent(
+                format!("Sender: {:?} does not exist", path).into(),
+            ));
+        }
+        if path.is_dir() {
+            for entry in WalkDir::new(path)
+                .into_iter()
+                .filter_entry(|e| !is_hidden(e))
+            {
+                let entry = match entry {
+                    Ok(entry) => entry,
+                    Err(e) => return Err(Error::Concurrent(format!("Sender: {}", e).into())),
+                };
+                let path = entry.path().to_path_buf();
+                if entry_is_valid(&path, include, exclude) {
+                    self.send_file(path, &sender)?;
+                }
+            }
+        } else if entry_is_valid(&path, include, exclude) {
+            self.send_file(path, &sender)?;
+        }
+
+        Ok(())
+    }
+
+    fn consumer(&self, receiver: Receiver<PathBuf>, sender: Sender<Snippets>) -> Result<()> {
+        // Extracts the snippets from the files received from the producer
+        // and sends them to the composer.
+        while let Ok(file) = receiver.recv() {
+            if let Some(snippets) = extract_file_snippets(file.clone(), &self.complexities) {
+                sender
+                    .send(snippets)
+                    .map_err(|e| Error::Concurrent(format!("Sender: {}", e).into()))?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn composer(&self, receiver: Receiver<Snippets>) -> Result<Vec<Snippets>> {
+        let mut snippets_result = Vec::new();
+
+        // Collects the snippets received from the consumer.
+        while let Ok(snippets) = receiver.recv() {
+            snippets_result.push(snippets)
+        }
+
+        Ok(snippets_result)
+    }
+
+    // Runs the producer-consumer-composer approach to process the files
+    // contained in a directory and in its own subdirectories.
+    //
+    // * `files_data` - Information about the files to be included or excluded
+    //    from a search more the number of paths considered in the search.
+    fn run(self, files_data: FilesData) -> Result<Vec<Snippets>>
+    where
+        Self: Sync,
+    {
+        let (producer_sender, consumer_receiver) = bounded(self.num_jobs);
+        let (consumer_sender, composer_receiver) = bounded(self.num_jobs);
+
+        scope(|scope| {
+            // Producer.
+            scope.spawn(|_| self.producer(producer_sender, files_data));
+
+            // Composer.
+            let composer = scope.spawn(|_| self.composer(composer_receiver));
+
+            // Consumer.
+            (0..self.num_jobs).into_par_iter().try_for_each(|_| {
+                self.consumer(consumer_receiver.clone(), consumer_sender.clone())
+            })?;
+
+            // The Sender between consumers and composer must be dropped to ensure the channel between them closes.
+            // Otherwise, the composer will indefinitely await data from the consumers.
+            drop(consumer_sender);
+
+            // Result produced by the composer.
+            composer.join()?
+        })
+        .map_err(Into::<Error>::into)?
+    }
+}
+
+#[inline(always)]
+fn is_hidden(entry: &DirEntry) -> bool {
+    entry
+        .file_name()
+        .to_str()
+        .map(|s| s.starts_with('.'))
+        .unwrap_or(false)
+}
+
+#[inline(always)]
+fn entry_is_valid(path: &Path, include: &GlobSet, exclude: &GlobSet) -> bool {
+    (include.is_empty() || include.is_match(path))
+        && (exclude.is_empty() || !exclude.is_match(path))
+        && path.is_file()
+}
+
+fn extract_file_snippets(
+    source_path: PathBuf,
+    complexities: &[(Complexity, usize)],
+) -> Option<Snippets> {
     // Read source file an return it as a sequence of bytes.
-    let source_file_bytes = read_file_with_eol(&source_path)?.ok_or(Error::WrongContent)?;
+    let source_file_bytes = read_file_with_eol(&source_path).ok()??;
 
     // Convert source code bytes to an utf-8 string.
     // When the conversion is not possible for every bytes,
     // encode all bytes as utf-8.
     let source_file = match std::str::from_utf8(&source_file_bytes) {
         Ok(source_file) => source_file.to_owned(),
-        Err(_) => encode_to_utf8(&source_file_bytes)?,
+        Err(_) => encode_to_utf8(&source_file_bytes).ok()?,
     };
 
     // Guess which is the language associated to the source file.
-    let language = guess_language(source_file.as_bytes(), &source_path)
-        .0
-        .ok_or(Error::UnknownLanguage)?;
+    let language = guess_language(source_file.as_bytes(), &source_path).0?;
 
     // Get metrics values for each space which forms the source code.
     let spaces = get_function_spaces(
@@ -209,22 +336,14 @@ fn extract_file_snippets(source_path: PathBuf, cfg: &SnippetsConfig) -> Result<(
         source_file.as_bytes().to_vec(),
         &source_path,
         None,
-    )
-    .ok_or(Error::NoSpaces)?;
+    )?;
 
-    // Get code snippets for each metric
-    let snippets = get_code_snippets(
+    // Get code snippets for each metric and return them.
+    get_code_snippets(
         spaces,
         language.into(),
         source_path,
         source_file.as_ref(),
-        &cfg.complexities,
-    );
-
-    // If there are snippets, output file/files in the chosen format.
-    if let Some(snippets) = snippets {
-        cfg.snippets.as_ref().lock()?.push(snippets);
-    }
-
-    Ok(())
+        complexities,
+    )
 }

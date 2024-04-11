@@ -2,8 +2,6 @@ use std::borrow::Cow;
 
 use thiserror::Error;
 
-use crate::concurrent::ConcurrentErrors;
-
 /// Error types.
 #[derive(Debug, Error)]
 pub enum Error {
@@ -45,15 +43,9 @@ pub enum Error {
     JsonOutput(#[from] serde_json::Error),
 }
 
-impl From<crate::concurrent::ConcurrentErrors> for Error {
-    fn from(e: ConcurrentErrors) -> Self {
-        let value = match e {
-            ConcurrentErrors::Producer(e) => format!("Producer: {e}"),
-            ConcurrentErrors::Sender(e) => format!("Sender: {e}"),
-            ConcurrentErrors::Receiver(e) => format!("Receiver: {e}"),
-            ConcurrentErrors::Thread(e) => format!("Thread: {e}"),
-        };
-        Self::Concurrent(Cow::from(value))
+impl From<Box<dyn std::any::Any + Send>> for Error {
+    fn from(_e: Box<dyn std::any::Any + Send>) -> Self {
+        Error::Concurrent("Producer: child thread panicked".into())
     }
 }
 
