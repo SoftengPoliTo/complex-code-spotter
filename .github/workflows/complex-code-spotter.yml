@@ -273,7 +273,7 @@ jobs:
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
 
-  denyubuntu:
+  deny:
 
     needs: [code-coverage, weighted-code-coverage]
 
@@ -339,7 +339,7 @@ jobs:
 
   careful:
 
-    needs: [audit, udeps]
+    needs: [audit, deny, udeps]
 
     runs-on: ubuntu-latest
 
@@ -367,7 +367,7 @@ jobs:
 
   address-sanitizer:
 
-    needs: [audit, udeps]
+    needs: [audit, deny, udeps]
 
     runs-on: ubuntu-latest
 

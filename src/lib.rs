@@ -168,14 +168,14 @@ impl<'a> SnippetsProducer<'a> {
     }
 }
 
-/// Data related to files.
+// Data related to files.
 struct FilesData {
-    /// Kind of files included in a search.
-    pub include: GlobSet,
-    /// Kind of files excluded from a search.
-    pub exclude: GlobSet,
-    /// File path.
-    pub path: PathBuf,
+    // Kind of files included in a search.
+    include: GlobSet,
+    // Kind of files excluded from a search.
+    exclude: GlobSet,
+    // File path.
+    path: PathBuf,
 }
 
 // A runner to process files concurrently.
