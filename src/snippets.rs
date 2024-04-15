@@ -196,8 +196,11 @@ pub(crate) fn get_code_snippets(
     // Delete complexity metrics which are below a specified threshold.
     let complexity_thresholds = complexities
         .iter()
-        .filter(|(complexity, threshold)| complexity.value(&space, *threshold).is_some())
-        .map(|(complexity, threshold)| (*complexity, *threshold))
+        .filter_map(|(complexity, threshold)| {
+            complexity
+                .value(&space, *threshold)
+                .map(|_| (*complexity, *threshold))
+        })
         .collect::<Vec<(Complexity, usize)>>();
 
     // Do not extract snippets when the code has lower complexities values.
