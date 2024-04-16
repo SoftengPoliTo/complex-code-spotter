@@ -162,7 +162,7 @@ fn obtain_snippets(
     complexity_thresholds: Vec<(Complexity, usize)>,
     snippets: &mut HashMap<Complexity, Vec<SnippetData>>,
 ) {
-    // Initialize the stack with the input spaces. 
+    // Initialize the stack with the input spaces.
     let mut spaces_stack: Vec<&FuncSpace> = spaces.iter().collect();
 
     // Iter over stack spaces.
@@ -243,7 +243,7 @@ pub(crate) fn get_code_snippets(
     metrics_snippets
         .snippets
         .values_mut()
-        .for_each(|s| s.sort_by_key(|snippet| snippet.start_line));
+        .for_each(|s| s.sort_unstable_by_key(|snippet| snippet.start_line));
 
     Some(metrics_snippets)
 }
