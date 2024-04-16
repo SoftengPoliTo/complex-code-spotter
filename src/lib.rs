@@ -159,11 +159,14 @@ impl<'a> SnippetsProducer<'a> {
             return GlobSet::empty();
         }
         let mut globset = GlobSetBuilder::new();
-        elems.iter().filter(|e| !e.is_empty()).for_each(|e| {
-            if let Ok(glob) = Glob::new(e) {
+        elems
+            .iter()
+            .filter(|e| !e.is_empty())
+            .filter_map(|e| Glob::new(e).ok())
+            .for_each(|glob| {
                 globset.add(glob);
-            }
-        });
+            });
+
         globset.build().map_or(GlobSet::empty(), |globset| globset)
     }
 }
@@ -220,10 +223,8 @@ impl ConcurrentRunner {
                 .into_iter()
                 .filter_entry(|e| !is_hidden(e))
             {
-                let entry = match entry {
-                    Ok(entry) => entry,
-                    Err(e) => return Err(Error::Concurrent(format!("Sender: {}", e).into())),
-                };
+                let entry =
+                    entry.map_err(|e| Error::Concurrent(format!("Sender: {}", e).into()))?;
                 let path = entry.path().to_path_buf();
                 if entry_is_valid(&path, include, exclude) {
                     self.send_file(path, &sender)?;
@@ -322,10 +323,10 @@ fn extract_file_snippets(
     // Convert source code bytes to an utf-8 string.
     // When the conversion is not possible for every bytes,
     // encode all bytes as utf-8.
-    let source_file = match std::str::from_utf8(&source_file_bytes) {
-        Ok(source_file) => source_file.to_owned(),
-        Err(_) => encode_to_utf8(&source_file_bytes).ok()?,
-    };
+    let source_file = std::str::from_utf8(&source_file_bytes).map_or_else(
+        |_| encode_to_utf8(&source_file_bytes).ok(),
+        |source_file| Some(source_file.to_owned()),
+    )?;
 
     // Guess which is the language associated to the source file.
     let language = guess_language(source_file.as_bytes(), &source_path).0?;
