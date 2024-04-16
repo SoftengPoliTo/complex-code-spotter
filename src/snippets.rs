@@ -146,31 +146,38 @@ fn obtain_snippets_single_space(
         });
 }
 
+fn get_snippet_text(source_file: &str, space: &FuncSpace) -> String {
+    // Get code snippet from source code.
+    source_file
+        .lines()
+        .skip(space.start_line.saturating_sub(1))
+        .take((space.end_line - space.start_line) + 1)
+        .collect::<Vec<&str>>()
+        .join("\n")
+}
+
 fn obtain_snippets(
     spaces: &[FuncSpace],
     source_file: &str,
     complexity_thresholds: Vec<(Complexity, usize)>,
     snippets: &mut HashMap<Complexity, Vec<SnippetData>>,
 ) {
-    // Iter over spaces.
-    for space in spaces {
+    // Initialize the stack with the input spaces. 
+    let mut spaces_stack: Vec<&FuncSpace> = spaces.iter().collect();
+
+    // Iter over stack spaces.
+    while let Some(space) = spaces_stack.pop() {
         let complexity_thresholds = complexity_thresholds
             .iter()
             .filter_map(|(complexity, threshold)| {
                 complexity.value(space, *threshold).map(|complexity_value| {
                     if complexity_value > *threshold {
-                        // Get code snippet from source code.
-                        let str_lines: Vec<&str> = source_file
-                            .lines()
-                            .skip(space.start_line.saturating_sub(1))
-                            .take((space.end_line - space.start_line) + 1)
-                            .collect();
                         save_snippets(
                             *complexity,
                             complexity_value,
                             space.start_line,
                             space.end_line,
-                            str_lines.join("\n"),
+                            get_snippet_text(source_file, space),
                             snippets,
                         );
                     }
@@ -181,7 +188,7 @@ fn obtain_snippets(
 
         // Obtain snippets from subspaces which have high complexities values.
         if !complexity_thresholds.is_empty() {
-            obtain_snippets(&space.spaces, source_file, complexity_thresholds, snippets);
+            spaces_stack.extend(&space.spaces);
         }
     }
 }
@@ -231,6 +238,12 @@ pub(crate) fn get_code_snippets(
             &mut metrics_snippets.snippets,
         );
     }
+
+    // Sort extracted snippets by start line.
+    metrics_snippets
+        .snippets
+        .values_mut()
+        .for_each(|s| s.sort_by_key(|snippet| snippet.start_line));
 
     Some(metrics_snippets)
 }
